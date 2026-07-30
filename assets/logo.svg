@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">KONTRA</title>
+  <desc id="desc">Hexagonal K logo</desc>
+  <defs>
+    <linearGradient id="g" x1="18" y1="15" x2="108" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#dfff74"/>
+      <stop offset=".52" stop-color="#9ccd36"/>
+      <stop offset=".78" stop-color="#ffcc3d"/>
+      <stop offset="1" stop-color="#ff3d35"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <path d="M64 7 112 34v60L64 121 16 94V34Z" fill="#080b09" stroke="url(#g)" stroke-width="6"/>
+  <path d="M64 20 100 40v46L64 106 28 86V40Z" fill="none" stroke="#2c342b" stroke-width="4"/>
+  <path d="M45 35h15v23l21-23h20L76 62l27 32H82L60 67v27H45Z" fill="url(#g)" filter="url(#glow)"/>
+  <circle cx="101" cy="25" r="7" fill="#ff4e42"/>
+</svg>
