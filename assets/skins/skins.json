@@ -1,0 +1,89 @@
+{
+  "schema": 2,
+  "server": "SURVIVAL",
+  "currency": "tokens",
+  "artVersion": "v28-generated",
+  "animation": "css-idle-per-skin",
+  "skins": [
+    {
+      "skinId": "sas",
+      "model": "sas",
+      "name": "SAS",
+      "price": 5000,
+      "preview": "assets/skins/sas.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "gsg9",
+      "model": "gsg9",
+      "name": "GSG 9",
+      "price": 5000,
+      "preview": "assets/skins/gsg9.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "gsg9_admin",
+      "model": "gsg9_admin",
+      "name": "GSG 9 ADMIN",
+      "price": 5000,
+      "preview": "assets/skins/gsg9_admin.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "gign",
+      "model": "gign",
+      "name": "GIGN",
+      "price": 5000,
+      "preview": "assets/skins/gign.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "sas_custom",
+      "model": "sas_custom",
+      "name": "SAS CUSTOM",
+      "price": 5000,
+      "preview": "assets/skins/sas_custom.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "elite_arctic",
+      "model": "elite_arctic",
+      "name": "ELITE ARCTIC",
+      "price": 5000,
+      "preview": "assets/skins/elite_arctic.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "leet",
+      "model": "leet",
+      "name": "LEET",
+      "price": 5000,
+      "preview": "assets/skins/leet.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "leet_pirate",
+      "model": "leet_pirate",
+      "name": "LEET PIRATE",
+      "price": 5000,
+      "preview": "assets/skins/leet_pirate.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "professional",
+      "model": "professional",
+      "name": "PROFESSIONAL",
+      "price": 5000,
+      "preview": "assets/skins/professional.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    },
+    {
+      "skinId": "survivor",
+      "model": "survivor",
+      "name": "SURVIVOR",
+      "price": 10000,
+      "preview": "assets/skins/survivor.webp",
+      "source": "LVL_MOD_v72_WEB_BOOTSTRAP.lua"
+    }
+  ]
+}
