@@ -25,6 +25,7 @@ window.KONTRA_CONFIG = {
   seasonEndpoint: "/api/season",
   hallOfFameEndpoint: "/api/hall-of-fame",
   promosEndpoint: "/api/promos",
+  notificationsEndpoint: "/api/notifications",
   controlBaseEndpoint: "/api/control",
   settingsBaseEndpoint: "/api/settings",
   lvlBootstrapEndpoint: "/api/lvl/bootstrap",

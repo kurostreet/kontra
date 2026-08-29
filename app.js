@@ -1,4 +1,4 @@
-/* KONTRA SITE v47 — player comparison VS picker */
+/* KONTRA SITE v48 — notification center */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -60,6 +60,22 @@
       control: "CONTROL",
       top: "TOP",
       profile: "PROFILE",
+      notifications: "NOTIFICATIONS",
+      notificationUnread: "UNREAD",
+      notificationMarkAll: "MARK ALL READ",
+      notificationAllRead: "YOU ARE ALL CAUGHT UP",
+      notificationEmpty: "NO NOTIFICATIONS YET",
+      notificationEmptyText: "Server news, season events and account updates will appear here.",
+      notificationLoading: "LOADING NOTIFICATIONS...",
+      notificationError: "NOTIFICATIONS ARE TEMPORARILY UNAVAILABLE",
+      notificationGuestHint: "Guest read state is stored on this device. Sign in to sync it with your account.",
+      notificationAccountHint: "Read state is synchronized with your KONTRA account.",
+      notificationNew: "NEW",
+      notificationTypePromo: "PROMO CODE",
+      notificationTypeSeason: "SEASON",
+      notificationTypeUpdate: "UPDATE",
+      notificationTypeAccount: "ACCOUNT",
+      notificationTypeSystem: "SYSTEM",
       liveScoreboard: "LIVE SCOREBOARD",
       controlCenter: "CONTROL CENTER",
       retroPinball: "KONTRA PINBALL",
@@ -570,6 +586,22 @@
       control: "УПРАВЛЕНИЕ",
       top: "ТОП",
       profile: "ПРОФИЛЬ",
+      notifications: "УВЕДОМЛЕНИЯ",
+      notificationUnread: "НЕПРОЧИТАНО",
+      notificationMarkAll: "ПРОЧИТАТЬ ВСЕ",
+      notificationAllRead: "ВСЁ ПРОЧИТАНО",
+      notificationEmpty: "УВЕДОМЛЕНИЙ ПОКА НЕТ",
+      notificationEmptyText: "Здесь появятся новости сервера, события сезонов и уведомления аккаунта.",
+      notificationLoading: "ЗАГРУЗКА УВЕДОМЛЕНИЙ...",
+      notificationError: "УВЕДОМЛЕНИЯ ВРЕМЕННО НЕДОСТУПНЫ",
+      notificationGuestHint: "Для гостя прочитанное хранится на этом устройстве. Войди в аккаунт для синхронизации.",
+      notificationAccountHint: "Прочитанное синхронизируется с твоим аккаунтом KONTRA.",
+      notificationNew: "НОВОЕ",
+      notificationTypePromo: "ПРОМОКОД",
+      notificationTypeSeason: "СЕЗОН",
+      notificationTypeUpdate: "ОБНОВЛЕНИЕ",
+      notificationTypeAccount: "АККАУНТ",
+      notificationTypeSystem: "СИСТЕМА",
       liveScoreboard: "ТАБЛИЦА ИГРОКОВ",
       controlCenter: "ЦЕНТР УПРАВЛЕНИЯ",
       retroPinball: "KONTRA ПИНБОЛ",
@@ -1066,6 +1098,16 @@
     message: "",
     tone: ""
   };
+  const GUEST_NOTIFICATION_READ_KEY = "kontra:notification-guest-read:v1";
+  let notificationState = {
+    open: false,
+    loading: false,
+    error: "",
+    authenticated: false,
+    unreadCount: 0,
+    notifications: [],
+    loadedAt: 0
+  };
   let leaderboardState = {
     sort: "level",
     loading: false,
@@ -1475,6 +1517,10 @@
     return String(config.playerEndpoint || "").trim();
   }
 
+  function notificationsEndpoint() {
+    return String(config.notificationsEndpoint || "/api/notifications").trim().replace(/\/+$/, "");
+  }
+
   function seasonsEndpoint() {
     return String(config.seasonsEndpoint || "/api/seasons").trim();
   }
@@ -1577,6 +1623,7 @@
       lvlHubState.skinAction = { busy: false, skinId: "", error: "" };
     }
     renderAuth();
+    void fetchNotifications(true);
   }
 
   function clearAuth() {
@@ -1592,6 +1639,7 @@
     lvlHubState.skinAction = { busy: false, skinId: "", error: "" };
     renderAuth();
     renderLvlHub();
+    void fetchNotifications(true);
   }
 
   function setLoginStatus(message, isError = false) {
@@ -3550,6 +3598,231 @@
     }
   }
 
+  function notificationGuestReadSet() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(GUEST_NOTIFICATION_READ_KEY) || "[]");
+      return new Set(Array.isArray(parsed) ? parsed.map((value) => String(value || "")).filter(Boolean).slice(-300) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveNotificationGuestReadSet(set) {
+    try { localStorage.setItem(GUEST_NOTIFICATION_READ_KEY, JSON.stringify([...set].slice(-300))); } catch {}
+  }
+
+  function normalizeNotification(item = {}, authenticated = false, guestRead = null) {
+    const id = String(item.id || "").slice(0, 80);
+    if (!id) return null;
+    const type = ["promo", "season", "update", "account", "system"].includes(String(item.type || "").toLowerCase())
+      ? String(item.type).toLowerCase() : "system";
+    const title = item.title && typeof item.title === "object" ? item.title : {};
+    const body = item.body && typeof item.body === "object" ? item.body : {};
+    const read = authenticated ? item.read === true : Boolean(guestRead?.has(id));
+    return {
+      id,
+      type,
+      scope: String(item.scope || "global") === "personal" ? "personal" : "global",
+      title: { ru: String(title.ru || title.en || "").slice(0, 120), en: String(title.en || title.ru || "").slice(0, 120) },
+      body: { ru: String(body.ru || body.en || "").slice(0, 600), en: String(body.en || body.ru || "").slice(0, 600) },
+      meta: item.meta && typeof item.meta === "object" ? item.meta : {},
+      createdAt: Number(item.createdAt || 0),
+      publishedAt: Number(item.publishedAt || item.createdAt || 0),
+      expiresAt: Number(item.expiresAt || 0),
+      read
+    };
+  }
+
+  function notificationDescriptor(type) {
+    const descriptors = {
+      promo: { icon: "%", key: "notificationTypePromo" },
+      season: { icon: "★", key: "notificationTypeSeason" },
+      update: { icon: "⚡", key: "notificationTypeUpdate" },
+      account: { icon: "◎", key: "notificationTypeAccount" },
+      system: { icon: "◇", key: "notificationTypeSystem" }
+    };
+    return descriptors[type] || descriptors.system;
+  }
+
+  function notificationText(value) {
+    if (!value || typeof value !== "object") return "";
+    return String(value[language] || value.ru || value.en || "");
+  }
+
+  function formatNotificationTime(value) {
+    const ms = Number(value || 0);
+    if (!ms) return "—";
+    const diff = Math.max(0, Date.now() - ms);
+    const minute = 60000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diff < minute) return language === "ru" ? "ТОЛЬКО ЧТО" : "JUST NOW";
+    if (diff < hour) return language === "ru" ? `${Math.floor(diff / minute)} МИН НАЗАД` : `${Math.floor(diff / minute)} MIN AGO`;
+    if (diff < day) return language === "ru" ? `${Math.floor(diff / hour)} Ч НАЗАД` : `${Math.floor(diff / hour)} H AGO`;
+    return new Date(ms).toLocaleDateString(language === "ru" ? "ru-RU" : "en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  }
+
+  function renderNotificationBell() {
+    const button = $("#notificationButton");
+    const badge = $("#notificationBadge");
+    if (!button || !badge) return;
+    const count = Math.max(0, Number(notificationState.unreadCount || 0));
+    button.classList.toggle("has-unread", count > 0);
+    button.classList.toggle("is-open", notificationState.open);
+    button.setAttribute("aria-expanded", String(notificationState.open));
+    button.setAttribute("aria-label", count > 0 ? `${t("notifications")}: ${count}` : t("notifications"));
+    badge.hidden = count <= 0;
+    badge.textContent = count > 99 ? "99+" : String(count);
+  }
+
+  function renderNotificationCenter() {
+    const center = $("#notificationCenter");
+    const list = $("#notificationList");
+    const count = $("#notificationUnreadCount");
+    const markAll = $("#notificationsMarkAll");
+    const foot = $("#notificationFoot");
+    if (!center || !list) return;
+    center.classList.toggle("is-open", notificationState.open);
+    center.setAttribute("aria-hidden", String(!notificationState.open));
+    if (count) count.textContent = String(Math.max(0, Number(notificationState.unreadCount || 0)));
+    if (markAll) markAll.disabled = notificationState.loading || notificationState.unreadCount <= 0;
+    if (foot) foot.textContent = t(notificationState.authenticated ? "notificationAccountHint" : "notificationGuestHint");
+    renderNotificationBell();
+
+    list.replaceChildren();
+    if (notificationState.loading && !notificationState.notifications.length) {
+      const state = document.createElement("div");
+      state.className = "notification-center__state";
+      state.innerHTML = `<span class="notification-center__spinner"></span><strong>${t("notificationLoading")}</strong>`;
+      list.append(state);
+      return;
+    }
+    if (notificationState.error && !notificationState.notifications.length) {
+      const state = document.createElement("div");
+      state.className = "notification-center__state is-error";
+      const strong = document.createElement("strong"); strong.textContent = t("notificationError");
+      state.append(strong); list.append(state); return;
+    }
+    if (!notificationState.notifications.length) {
+      const state = document.createElement("div");
+      state.className = "notification-center__state";
+      const icon = document.createElement("span"); icon.className = "notification-center__empty-icon"; icon.textContent = "♢";
+      const strong = document.createElement("strong"); strong.textContent = t("notificationEmpty");
+      const p = document.createElement("p"); p.textContent = t("notificationEmptyText");
+      state.append(icon, strong, p); list.append(state); return;
+    }
+
+    for (const item of notificationState.notifications) {
+      const descriptor = notificationDescriptor(item.type);
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = `notification-card notification-card--${item.type}${item.read ? " is-read" : " is-unread"}`;
+      card.dataset.notificationId = item.id;
+      const icon = document.createElement("span"); icon.className = "notification-card__icon"; icon.textContent = descriptor.icon;
+      const copy = document.createElement("span"); copy.className = "notification-card__copy";
+      const meta = document.createElement("span"); meta.className = "notification-card__meta";
+      const type = document.createElement("b"); type.textContent = t(descriptor.key);
+      const time = document.createElement("time"); time.textContent = formatNotificationTime(item.publishedAt || item.createdAt);
+      meta.append(type, time);
+      const title = document.createElement("strong"); title.textContent = notificationText(item.title) || t(descriptor.key);
+      const body = document.createElement("small"); body.textContent = notificationText(item.body);
+      copy.append(meta, title, body);
+      card.append(icon, copy);
+      if (!item.read) { const dot = document.createElement("i"); dot.className = "notification-card__dot"; dot.setAttribute("aria-label", t("notificationNew")); card.append(dot); }
+      list.append(card);
+    }
+  }
+
+  async function fetchNotifications(force = false) {
+    const endpoint = notificationsEndpoint();
+    if (!endpoint || notificationState.loading) return;
+    if (!force && notificationState.loadedAt && Date.now() - notificationState.loadedAt < 30000) return;
+    notificationState.loading = true;
+    notificationState.error = "";
+    renderNotificationCenter();
+    try {
+      const headers = { Accept: "application/json" };
+      if (authState.sessionToken) headers.Authorization = `Bearer ${authState.sessionToken}`;
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const response = await fetch(`${endpoint}${separator}limit=50&_=${Date.now()}`, { cache: "no-store", headers });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(String(data?.error || `HTTP_${response.status}`));
+      const authenticated = data.authenticated === true && Boolean(authState.sessionToken);
+      const guestRead = authenticated ? null : notificationGuestReadSet();
+      notificationState.authenticated = authenticated;
+      notificationState.notifications = (Array.isArray(data.notifications) ? data.notifications : [])
+        .map((item) => normalizeNotification(item, authenticated, guestRead)).filter(Boolean);
+      notificationState.unreadCount = authenticated
+        ? Math.max(0, Number(data.unreadCount || 0))
+        : notificationState.notifications.filter((item) => !item.read).length;
+      notificationState.loadedAt = Date.now();
+    } catch (error) {
+      notificationState.error = String(error?.message || "notifications_unavailable");
+    } finally {
+      notificationState.loading = false;
+      renderNotificationCenter();
+    }
+  }
+
+  function setNotificationCenter(open) {
+    notificationState.open = Boolean(open);
+    document.body.classList.toggle("notification-center-open", notificationState.open);
+    renderNotificationCenter();
+    if (notificationState.open) void fetchNotifications(true);
+  }
+
+  async function markNotificationRead(id) {
+    const item = notificationState.notifications.find((entry) => entry.id === id);
+    if (!item || item.read) return;
+    if (notificationState.authenticated && authState.sessionToken) {
+      try {
+        const endpoint = notificationsEndpoint();
+        const response = await fetch(`${endpoint}/read`, {
+          method: "POST", cache: "no-store",
+          headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${authState.sessionToken}` },
+          body: JSON.stringify({ id })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.ok === false) throw new Error(String(data?.error || `HTTP_${response.status}`));
+        item.read = true;
+        notificationState.unreadCount = Math.max(0, Number(data.unreadCount ?? (notificationState.unreadCount - 1)));
+      } catch {
+        toast(t("notificationError"));
+        return;
+      }
+    } else {
+      const read = notificationGuestReadSet(); read.add(id); saveNotificationGuestReadSet(read);
+      item.read = true;
+      notificationState.unreadCount = notificationState.notifications.filter((entry) => !entry.read).length;
+    }
+    renderNotificationCenter();
+  }
+
+  async function markAllNotificationsRead() {
+    if (notificationState.unreadCount <= 0) return;
+    if (notificationState.authenticated && authState.sessionToken) {
+      try {
+        const endpoint = notificationsEndpoint();
+        const response = await fetch(`${endpoint}/read`, {
+          method: "POST", cache: "no-store",
+          headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${authState.sessionToken}` },
+          body: JSON.stringify({ all: true })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.ok === false) throw new Error(String(data?.error || `HTTP_${response.status}`));
+      } catch {
+        toast(t("notificationError")); return;
+      }
+    } else {
+      const read = notificationGuestReadSet();
+      notificationState.notifications.forEach((item) => read.add(item.id));
+      saveNotificationGuestReadSet(read);
+    }
+    notificationState.notifications.forEach((item) => { item.read = true; });
+    notificationState.unreadCount = 0;
+    renderNotificationCenter();
+  }
+
   function applyLanguage(next) {
     language = next === "ru" ? "ru" : "en";
     localStorage.setItem("kontra:lang", language);
@@ -3564,6 +3837,7 @@
     renderHallOfFame();
     renderSeasonHistory();
     renderSeasonDuration();
+    renderNotificationCenter();
     if ($("#playerModal")?.classList.contains("is-open")) renderPlayerModal();
     if ($("#controlModal")?.classList.contains("is-open") && settingsState.data && controlState.panel === "lvl") {
       $("#controlModalLead").textContent = t("persistentSettingsLead");
@@ -8151,6 +8425,13 @@
 
   function bind() {
     $$('[data-lang]').forEach((button) => button.addEventListener("click", () => applyLanguage(button.dataset.lang)));
+    $("#notificationButton")?.addEventListener("click", () => setNotificationCenter(!notificationState.open));
+    $$('[data-close-notifications]').forEach((button) => button.addEventListener("click", () => setNotificationCenter(false)));
+    $("#notificationsMarkAll")?.addEventListener("click", () => void markAllNotificationsRead());
+    $("#notificationList")?.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-notification-id]");
+      if (card) void markNotificationRead(card.dataset.notificationId);
+    });
     $$('[data-nav]').forEach((button) => button.addEventListener("click", (event) => {
       event.preventDefault();
       showView(button.dataset.nav);
@@ -8350,6 +8631,8 @@
   void runStatusPoll();
   void fetchSeasonPromos();
   setInterval(() => void fetchSeasonPromos(), 60000);
+  void fetchNotifications(true);
+  setInterval(() => void fetchNotifications(false), 60000);
   renderSeasonDuration();
   void refreshSeasonDurationTarget();
   setInterval(renderSeasonDuration, 1000);
