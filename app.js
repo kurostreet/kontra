@@ -1,4 +1,4 @@
-/* KONTRA SITE v44 — Hall of Fame + live promos + profile promo redeem */
+/* KONTRA SITE v45 — UI polish + live season duration */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -34,7 +34,7 @@
       yourStats: "YOUR STATISTICS",
       seasonPromosEyebrow: "SEASON BONUS",
       seasonPromosTitle: "NEW SEASON PROMO CODES",
-      seasonPromosLead: "Enter the code in the in-game chat and collect the reward.",
+      seasonPromosLead: "Enter the promo code in the in-game chat or activate it in your profile.",
       promoTokens: "TOKENS",
       promoCopy: "COPY",
       promoCopied: "PROMO CODE COPIED",
@@ -285,12 +285,16 @@
       communityLinks: "COMMUNITIES",
       telegramUnofficial: "Unofficial group",
       discordOfficial: "Official group",
-      contactAdministration: "CONTACT ADMINISTRATION",
+      contactAdministration: "CONTACT SERVER DEVELOPER",
       usefulLinks: "USEFUL LINKS",
       serverIp: "SERVER IP",
       copyIp: "COPY IP",
       installKontraServer: "INSTALL KONTRA SERVER",
       androidApk: "ANDROID APK",
+      comingSoonGooglePlay: "COMING SOON ON GOOGLE PLAY",
+      unofficialServer: "UNOFFICIAL SERVER",
+      seasonDuration: "SEASON DURATION",
+      untilNextSeason: "UNTIL NEXT SEASON",
       gameServers: "GAME SERVERS",
       signInAccount: "SIGN IN TO ACCOUNT",
       username: "USERNAME",
@@ -519,7 +523,7 @@
       yourStats: "ВАША СТАТИСТИКА",
       seasonPromosEyebrow: "БОНУС СЕЗОНА",
       seasonPromosTitle: "ПРОМОКОДЫ НОВОГО СЕЗОНА",
-      seasonPromosLead: "Введи промокод в игровой чат и забери награду.",
+      seasonPromosLead: "Введи промокод в игровой чат или активируй его в профиле.",
       promoTokens: "ТОКЕНОВ",
       promoCopy: "КОПИРОВАТЬ",
       promoCopied: "ПРОМОКОД СКОПИРОВАН",
@@ -770,12 +774,16 @@
       communityLinks: "СООБЩЕСТВА",
       telegramUnofficial: "Неофициальная группа",
       discordOfficial: "Официальная группа",
-      contactAdministration: "СВЯЗЬ С АДМИНИСТРАЦИЕЙ",
+      contactAdministration: "СВЯЗЬ С РАЗРАБОТЧИКОМ СЕРВЕРА",
       usefulLinks: "ПОЛЕЗНЫЕ ССЫЛКИ",
       serverIp: "IP СЕРВЕРА",
       copyIp: "КОПИРОВАТЬ IP",
       installKontraServer: "УСТАНОВИТЬ KONTRA SERVER",
       androidApk: "ANDROID APK",
+      comingSoonGooglePlay: "СКОРО В GOOGLE PLAY",
+      unofficialServer: "НЕОФИЦИАЛЬНЫЙ СЕРВЕР",
+      seasonDuration: "ДЛИТЕЛЬНОСТЬ СЕЗОНА",
+      untilNextSeason: "ДО НОВОГО СЕЗОНА",
       gameServers: "ИГРОВЫЕ СЕРВЕРЫ",
       signInAccount: "ВОЙТИ В АККАУНТ",
       username: "ЛОГИН",
@@ -3081,6 +3089,90 @@
     }
   }
 
+  const seasonLiveState = {
+    endAt: Date.parse("2026-09-01T00:00:00+03:00"),
+    refreshInFlight: false
+  };
+
+  function parseSeasonBoundary(value) {
+    const match = String(value || "").trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!match) return 0;
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    if (!day || month < 1 || month > 12 || year < 2020) return 0;
+    return Date.parse(`${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+03:00`);
+  }
+
+  function addSeasonMonths(timestamp, months = 3) {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return 0;
+    const source = new Date(timestamp + (3 * 60 * 60 * 1000));
+    let year = source.getUTCFullYear();
+    let month = source.getUTCMonth() + Number(months || 3);
+    const day = source.getUTCDate();
+    year += Math.floor(month / 12);
+    month %= 12;
+    const maxDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const targetDay = Math.min(day, maxDay);
+    return Date.UTC(year, month, targetDay, -3, 0, 0, 0);
+  }
+
+  function nextQuarterBoundary(fromTimestamp) {
+    let target = Number(fromTimestamp) || Date.parse("2026-09-01T00:00:00+03:00");
+    const now = Date.now();
+    let guard = 0;
+    while (target <= now && guard < 48) {
+      target = addSeasonMonths(target, 3);
+      guard += 1;
+    }
+    return target;
+  }
+
+  function renderSeasonDuration() {
+    const node = $("#seasonLiveTime");
+    if (!node) return;
+    const target = nextQuarterBoundary(seasonLiveState.endAt);
+    if (target !== seasonLiveState.endAt) seasonLiveState.endAt = target;
+    let seconds = Math.max(0, Math.floor((target - Date.now()) / 1000));
+    const days = Math.floor(seconds / 86400); seconds %= 86400;
+    const hours = Math.floor(seconds / 3600); seconds %= 3600;
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const clock = [hours, minutes, secs].map((value) => String(value).padStart(2, "0")).join(":");
+    node.textContent = language === "ru" ? `${days} ДН. ${clock}` : `${days} DAYS ${clock}`;
+  }
+
+  async function refreshSeasonDurationTarget() {
+    if (seasonLiveState.refreshInFlight) return;
+    seasonLiveState.refreshInFlight = true;
+    try {
+      const endpoint = seasonsEndpoint();
+      if (!endpoint) return;
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const response = await fetch(`${endpoint}${separator}limit=12&_=${Date.now()}`, { cache: "no-store", headers: { Accept: "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) return;
+      const candidates = [];
+      const current = parseSeasonBoundary(data.currentSeason);
+      if (current) candidates.push(current);
+      for (const season of (Array.isArray(data.seasons) ? data.seasons : [])) {
+        const parsed = parseSeasonBoundary(season?.seasonKey);
+        if (parsed) candidates.push(parsed);
+      }
+      if (candidates.length) {
+        const latestBoundary = Math.max(...candidates);
+        seasonLiveState.endAt = nextQuarterBoundary(addSeasonMonths(latestBoundary, 3));
+      } else {
+        seasonLiveState.endAt = nextQuarterBoundary(Date.parse("2026-09-01T00:00:00+03:00"));
+      }
+      renderSeasonDuration();
+    } catch (error) {
+      console.warn("[KONTRA] season duration unavailable", error);
+    } finally {
+      seasonLiveState.refreshInFlight = false;
+    }
+  }
+
   function applyLanguage(next) {
     language = next === "ru" ? "ru" : "en";
     localStorage.setItem("kontra:lang", language);
@@ -3094,6 +3186,7 @@
     renderRankingMode();
     renderHallOfFame();
     renderSeasonHistory();
+    renderSeasonDuration();
     if ($("#playerModal")?.classList.contains("is-open")) renderPlayerModal();
     if ($("#controlModal")?.classList.contains("is-open") && settingsState.data && controlState.panel === "lvl") {
       $("#controlModalLead").textContent = t("persistentSettingsLead");
@@ -7854,5 +7947,9 @@
   void runStatusPoll();
   void fetchSeasonPromos();
   setInterval(() => void fetchSeasonPromos(), 60000);
+  renderSeasonDuration();
+  void refreshSeasonDurationTarget();
+  setInterval(renderSeasonDuration, 1000);
+  setInterval(() => void refreshSeasonDurationTarget(), 300000);
   initializeAuth();
 })();

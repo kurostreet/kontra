@@ -5110,3 +5110,100 @@ body.theme-day .promo-season-panel{background:linear-gradient(145deg,rgba(255,21
 .profile-promo-redeem__status{display:block;margin-top:10px;color:var(--muted);font-size:10px;line-height:1.45}.profile-promo-redeem__status.is-loading{color:var(--yellow)}.profile-promo-redeem__status.is-success{color:var(--green)}.profile-promo-redeem__status.is-error{color:#ff7777}
 body.theme-day .profile-promo-redeem{background:linear-gradient(145deg,rgba(255,214,74,.09),rgba(255,255,255,.48))}body.theme-day .profile-promo-redeem__form input{background:rgba(255,255,255,.62)}
 @media(max-width:680px){.profile-promo-redeem{margin:0 18px 18px;padding:15px}.profile-promo-redeem__form{grid-template-columns:1fr}.profile-promo-redeem__form button{width:100%}.profile-promo-redeem>header p{font-size:10px}}
+
+
+/* ========================================================================== */
+/* KONTRA SITE v46 — UI POLISH + LIVE SEASON DURATION                         */
+/* ========================================================================== */
+
+/* Live quarterly countdown replaces the old LVL MOD / SURVIVAL hero mark. */
+.season-live-mark {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(86%, 360px);
+  padding: 9px 16px 10px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border: 1px solid rgba(102, 153, 255, .22);
+  border-radius: 16px;
+  background: linear-gradient(105deg, rgba(255, 45, 58, .08), rgba(4, 8, 16, .72) 42% 58%, rgba(36, 134, 255, .10));
+  box-shadow: 0 10px 28px rgba(0,0,0,.34), inset 0 0 26px rgba(41,129,255,.04);
+  backdrop-filter: blur(8px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.season-live-mark__label {
+  color: #aab6c8;
+  font: 800 9px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .18em;
+}
+
+.season-live-mark__time {
+  color: #f5f7fb;
+  font: 900 clamp(18px, 4.4vw, 26px)/1.05 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .045em;
+  text-shadow: -2px 0 13px rgba(255,54,65,.26), 2px 0 13px rgba(45,145,255,.26);
+}
+
+.season-live-mark__hint {
+  color: #77869c;
+  font: 700 8px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .14em;
+}
+
+/* The empty area above the mobile drawer carries a subtle disclosure. */
+.scrim__note {
+  position: absolute;
+  top: max(108px, 17dvh);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 48px);
+  padding: 8px 13px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 999px;
+  color: rgba(222,229,239,.72);
+  background: rgba(4,8,15,.38);
+  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+  font: 800 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .17em;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* KONTRA SERVER is intentionally a normal drawer row until the Play link exists. */
+.drawer-downloads--badges-only > .drawer-action {
+  margin-top: 7px;
+  border: 0 !important;
+  border-top: 1px solid rgba(255,255,255,.055) !important;
+  border-radius: 0;
+  background: none !important;
+  box-shadow: none !important;
+}
+
+body.theme-day .season-live-mark {
+  border-color: rgba(58,111,183,.18);
+  background: rgba(250,252,255,.76);
+  box-shadow: 0 10px 28px rgba(34,50,72,.12);
+}
+body.theme-day .season-live-mark__label { color: #586578; }
+body.theme-day .season-live-mark__time { color: #182436; }
+body.theme-day .season-live-mark__hint { color: #718096; }
+body.theme-day .scrim__note { color: rgba(245,248,252,.82); }
+
+@media (max-width: 720px) {
+  .season-live-mark { top: 8px; width: min(82%, 310px); padding: 7px 12px 8px; border-radius: 13px; gap: 3px; }
+  .season-live-mark__label { font-size: 8px; }
+  .season-live-mark__hint { font-size: 7px; }
+  .scrim__note { top: max(92px, 14dvh); }
+}
+
+@media (max-width: 390px) {
+  .season-live-mark { width: min(84%, 286px); }
+  .season-live-mark__time { font-size: 17px; }
+}

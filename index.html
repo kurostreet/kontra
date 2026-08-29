@@ -7,11 +7,11 @@
   <meta name="description" content="KONTRA // SURVIVAL — live server dashboard and player portal.">
   <title>KONTRA // SURVIVAL</title>
   <link rel="icon" href="assets/kontra-zombie-logo.webp" type="image/webp">
-  <link rel="stylesheet" href="styles.css?v=42">
+  <link rel="stylesheet" href="styles.css?v=43">
   <script src="config.js?v=31"></script>
-  <script src="app.js?v=47" defer></script>
+  <script src="app.js?v=48" defer></script>
 </head>
-<body data-build="v37-hall-of-fame">
+<body data-build="v38-ui-polish">
   <div class="ambient ambient--one" aria-hidden="true"></div>
   <div class="ambient ambient--two" aria-hidden="true"></div>
 
@@ -43,9 +43,10 @@
     <main>
       <section class="view is-active" data-view="home" id="home">
         <div class="home-visual" aria-hidden="true">
-          <div class="mode-mark mode-mark--hero" aria-label="LVL MOD SURVIVAL">
-            <div class="mode-mark__row mode-mark__row--lvl"><b>L</b><b>V</b><b>L</b><b>M</b><b>O</b><b>D</b></div>
-            <div class="mode-mark__row mode-mark__row--zombie"><b>S</b><b>U</b><b>R</b><b>V</b><b>I</b><b>V</b><b>A</b><b>L</b></div>
+          <div class="season-live-mark" aria-live="polite">
+            <span class="season-live-mark__label" data-i18n="seasonDuration">SEASON DURATION</span>
+            <strong class="season-live-mark__time" id="seasonLiveTime">—</strong>
+            <small class="season-live-mark__hint" data-i18n="untilNextSeason">UNTIL NEXT SEASON</small>
           </div>
           <span class="home-visual__glow home-visual__glow--red"></span>
           <span class="home-visual__glow home-visual__glow--blue"></span>
@@ -368,7 +369,9 @@
     </nav>
   </div>
 
-  <div class="scrim" id="scrim" hidden></div>
+  <div class="scrim" id="scrim" hidden>
+    <span class="scrim__note" data-i18n="unofficialServer">UNOFFICIAL SERVER</span>
+  </div>
 
   <aside class="drawer" id="drawer" aria-hidden="true">
     <div class="drawer__handle"></div>
@@ -411,7 +414,7 @@
         </a>
         <a class="drawer-action" data-link="administration" target="_blank" rel="noopener noreferrer">
           <span class="drawer-action__icon drawer-action__icon--red" aria-hidden="true">✦</span>
-          <span class="drawer-action__copy"><strong data-i18n="contactAdministration">CONTACT ADMINISTRATION</strong><small>@blackmodru</small></span>
+          <span class="drawer-action__copy"><strong data-i18n="contactAdministration">CONTACT SERVER DEVELOPER</strong><small>@blackmodru</small></span>
           <b>›</b>
         </a>
       </section>
@@ -447,15 +450,15 @@
               <span class="store-badge__copy"><small data-i18n="getItOn">GET IT ON</small><strong>GOOGLE PLAY</strong></span>
             </a>
           </div>
-          <a class="drawer-action drawer-kontra-server-install" data-link="kontraServerApk" download="kontra-server.apk" aria-label="Install Kontra Server for Android">
-            <span class="drawer-action__icon drawer-action__icon--blue" aria-hidden="true">↓</span>
-            <span class="drawer-action__copy">
-              <strong data-i18n="installKontraServer">INSTALL KONTRA SERVER</strong>
-              <small data-i18n="androidApk">ANDROID APK</small>
-            </span>
-            <b>›</b>
-          </a>
         </div>
+        <button class="drawer-action" type="button" aria-label="Install Kontra Server for Android">
+          <span class="drawer-action__icon drawer-action__icon--blue" aria-hidden="true">↓</span>
+          <span class="drawer-action__copy">
+            <strong data-i18n="installKontraServer">INSTALL KONTRA SERVER</strong>
+            <small data-i18n="comingSoonGooglePlay">COMING SOON ON GOOGLE PLAY</small>
+          </span>
+          <b>›</b>
+        </button>
       </section>
 
       <section class="drawer-server-list" aria-labelledby="drawerServersTitle">
