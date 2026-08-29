@@ -1,4 +1,4 @@
-/* KONTRA SITE v48 — notification center */
+/* KONTRA SITE v49 — Google Play legal pages */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -347,6 +347,13 @@
       discordOfficial: "Official group",
       contactAdministration: "CONTACT SERVER DEVELOPER",
       usefulLinks: "USEFUL LINKS",
+      legalDocuments: "DOCUMENTS",
+      privacyPolicy: "PRIVACY POLICY",
+      deleteAccount: "DELETE ACCOUNT",
+      supportCenter: "SUPPORT",
+      communityRules: "RULES",
+      legalCenterTitle: "PRIVACY & ACCOUNT",
+      legalCenterLead: "Manage privacy, account deletion, support and community rules.",
       serverIp: "SERVER IP",
       copyIp: "COPY IP",
       installKontraServer: "INSTALL KONTRA SERVER",
@@ -896,6 +903,13 @@
       discordOfficial: "Официальная группа",
       contactAdministration: "СВЯЗЬ С РАЗРАБОТЧИКОМ СЕРВЕРА",
       usefulLinks: "ПОЛЕЗНЫЕ ССЫЛКИ",
+      legalDocuments: "ДОКУМЕНТЫ",
+      privacyPolicy: "ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ",
+      deleteAccount: "УДАЛИТЬ АККАУНТ",
+      supportCenter: "ПОДДЕРЖКА",
+      communityRules: "ПРАВИЛА",
+      legalCenterTitle: "КОНФИДЕНЦИАЛЬНОСТЬ И АККАУНТ",
+      legalCenterLead: "Политика конфиденциальности, удаление аккаунта, поддержка и правила сообщества.",
       serverIp: "IP СЕРВЕРА",
       copyIp: "КОПИРОВАТЬ IP",
       installKontraServer: "УСТАНОВИТЬ KONTRA SERVER",
@@ -3255,6 +3269,36 @@
     return section;
   }
 
+  function createLegalCenter() {
+    const section = document.createElement("section");
+    section.className = "profile-legal-center";
+
+    const header = document.createElement("header");
+    const title = document.createElement("strong");
+    title.textContent = t("legalCenterTitle");
+    const lead = document.createElement("p");
+    lead.textContent = t("legalCenterLead");
+    header.append(title, lead);
+
+    const links = document.createElement("div");
+    links.className = "profile-legal-center__links";
+    [
+      ["privacyPolicy", "/privacy/"],
+      ["deleteAccount", "/delete-account/"],
+      ["supportCenter", "/support/"],
+      ["communityRules", "/rules/"]
+    ].forEach(([key, href]) => {
+      const link = document.createElement("a");
+      link.href = href;
+      link.className = "secondary-button profile-legal-center__link";
+      link.textContent = t(key);
+      links.appendChild(link);
+    });
+
+    section.append(header, links);
+    return section;
+  }
+
   function createFullProfile() {
     const profile = authState.profile;
     const account = authState.account;
@@ -3310,7 +3354,7 @@
     logout.addEventListener("click", logoutAccount);
     footer.append(meta, logout);
 
-    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityCenter(), footer);
+    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityCenter(), createLegalCenter(), footer);
     return card;
   }
 

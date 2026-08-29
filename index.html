@@ -7,11 +7,11 @@
   <meta name="description" content="KONTRA // SURVIVAL — live server dashboard and player portal.">
   <title>KONTRA // SURVIVAL</title>
   <link rel="icon" href="assets/kontra-zombie-logo.webp" type="image/webp">
-  <link rel="stylesheet" href="styles.css?v=notifications-admin-v1">
-  <script src="config.js?v=notifications-admin-v1"></script>
-  <script src="app.js?v=notifications-admin-v1" defer></script>
+  <link rel="stylesheet" href="styles.css?v=play-legal-v1">
+  <script src="config.js?v=play-legal-v1"></script>
+  <script src="app.js?v=play-legal-v1" defer></script>
 </head>
-<body data-build="v40-notifications-admin">
+<body data-build="v41-play-legal">
   <div class="ambient ambient--one" aria-hidden="true"></div>
   <div class="ambient ambient--two" aria-hidden="true"></div>
 
@@ -502,6 +502,30 @@
           </span>
           <b>›</b>
         </button>
+      </section>
+
+      <section class="drawer-section drawer-section--legal" aria-labelledby="drawerLegalTitle">
+        <h2 class="drawer-section__title" id="drawerLegalTitle" data-i18n="legalDocuments">DOCUMENTS</h2>
+        <a class="drawer-action" href="/privacy/">
+          <span class="drawer-action__icon drawer-action__icon--blue" aria-hidden="true">⌁</span>
+          <span class="drawer-action__copy"><strong data-i18n="privacyPolicy">PRIVACY POLICY</strong><small>kontrafps.ru/privacy</small></span>
+          <b>›</b>
+        </a>
+        <a class="drawer-action" href="/delete-account/">
+          <span class="drawer-action__icon drawer-action__icon--red" aria-hidden="true">×</span>
+          <span class="drawer-action__copy"><strong data-i18n="deleteAccount">DELETE ACCOUNT</strong><small>kontrafps.ru/delete-account</small></span>
+          <b>›</b>
+        </a>
+        <a class="drawer-action" href="/support/">
+          <span class="drawer-action__icon drawer-action__icon--violet" aria-hidden="true">?</span>
+          <span class="drawer-action__copy"><strong data-i18n="supportCenter">SUPPORT</strong><small>moscowhit17@gmail.com</small></span>
+          <b>›</b>
+        </a>
+        <a class="drawer-action" href="/rules/">
+          <span class="drawer-action__icon" aria-hidden="true">§</span>
+          <span class="drawer-action__copy"><strong data-i18n="communityRules">RULES</strong><small>kontrafps.ru/rules</small></span>
+          <b>›</b>
+        </a>
       </section>
 
       <section class="drawer-server-list" aria-labelledby="drawerServersTitle">
