@@ -1,4 +1,4 @@
-/* KONTRA SITE v45 — UI polish + live season duration */
+/* KONTRA SITE v46 — player comparison VS */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -239,6 +239,25 @@
       currentSeason: "CURRENT SEASON",
       hallOfFame: "HALL OF FAME",
       seasonHistory: "SEASON HISTORY",
+      comparePlayers: "PLAYER VS PLAYER",
+      compareTitle: "PLAYER COMPARISON",
+      compareLead: "Choose two LVL MOD players and compare their current season statistics.",
+      comparePlayerA: "PLAYER A",
+      comparePlayerB: "PLAYER B",
+      comparePlaceholder: "ENTER PLAYER NAME",
+      compareButton: "COMPARE",
+      compareSwap: "SWAP PLAYERS",
+      comparePickPlayers: "CHOOSE TWO PLAYERS",
+      comparePickPlayersText: "Start typing a nickname. Suggestions are taken from the current TOP, but any synchronized player can be entered manually.",
+      compareLoading: "LOADING PLAYER PROFILES...",
+      compareNotFound: "PLAYER PROFILE NOT FOUND",
+      compareError: "PLAYER COMPARISON IS TEMPORARILY UNAVAILABLE",
+      compareSamePlayer: "CHOOSE TWO DIFFERENT PLAYERS",
+      compareScore: "STAT ADVANTAGE",
+      compareAdvantage: "ADVANTAGE",
+      compareDraw: "DRAW",
+      compareMetricLevel: "LEVEL",
+      compareWithPlayer: "COMPARE PLAYER",
       hallLoading: "LOADING HALL OF FAME...",
       seasonLoading: "LOADING SEASONS...",
       hallWaiting: "HALL OF FAME IS WAITING FOR THE FIRST FINISHED SEASON",
@@ -728,6 +747,25 @@
       currentSeason: "ТЕКУЩИЙ СЕЗОН",
       hallOfFame: "ЗАЛ СЛАВЫ",
       seasonHistory: "ИСТОРИЯ СЕЗОНОВ",
+      comparePlayers: "ИГРОК VS ИГРОК",
+      compareTitle: "СРАВНЕНИЕ ИГРОКОВ",
+      compareLead: "Выбери двух игроков LVL MOD и сравни их статистику текущего сезона.",
+      comparePlayerA: "ИГРОК A",
+      comparePlayerB: "ИГРОК B",
+      comparePlaceholder: "ВВЕДИ НИК ИГРОКА",
+      compareButton: "СРАВНИТЬ",
+      compareSwap: "ПОМЕНЯТЬ ИГРОКОВ",
+      comparePickPlayers: "ВЫБЕРИ ДВУХ ИГРОКОВ",
+      comparePickPlayersText: "Начни вводить ник. Подсказки берутся из текущего ТОПа, но можно вручную указать любого синхронизированного игрока.",
+      compareLoading: "ЗАГРУЖАЕМ ПРОФИЛИ ИГРОКОВ...",
+      compareNotFound: "ПРОФИЛЬ ИГРОКА НЕ НАЙДЕН",
+      compareError: "СРАВНЕНИЕ ИГРОКОВ ВРЕМЕННО НЕДОСТУПНО",
+      compareSamePlayer: "ВЫБЕРИ ДВУХ РАЗНЫХ ИГРОКОВ",
+      compareScore: "ПРЕИМУЩЕСТВО ПО ПОКАЗАТЕЛЯМ",
+      compareAdvantage: "ПРЕИМУЩЕСТВО",
+      compareDraw: "НИЧЬЯ",
+      compareMetricLevel: "УРОВЕНЬ",
+      compareWithPlayer: "СРАВНИТЬ ИГРОКА",
       hallLoading: "ЗАГРУЗКА ЗАЛА СЛАВЫ...",
       seasonLoading: "ЗАГРУЗКА СЕЗОНОВ...",
       hallWaiting: "ЗАЛ СЛАВЫ ЖДЁТ ЗАВЕРШЕНИЯ ПЕРВОГО СЕЗОНА",
@@ -1029,6 +1067,15 @@
     loading: false,
     loadedAt: 0,
     players: []
+  };
+  let compareState = {
+    leftName: "",
+    rightName: "",
+    leftProfile: null,
+    rightProfile: null,
+    loading: false,
+    error: "",
+    message: ""
   };
   let seasonArchiveState = {
     mode: "current",
@@ -1882,10 +1929,256 @@
     }
     leaderboardState.loading = false;
     renderLeaderboard();
+    updateCompareDatalist();
     if (window.__kontraLastStatus) {
       renderPlayersPreview(window.__kontraLastStatus);
       renderScoreboard(window.__kontraLastStatus);
     }
+  }
+
+
+  function compareInputNames() {
+    return {
+      left: String($("#comparePlayerA")?.value || compareState.leftName || "").trim(),
+      right: String($("#comparePlayerB")?.value || compareState.rightName || "").trim()
+    };
+  }
+
+  function syncCompareInputs() {
+    const left = $("#comparePlayerA");
+    const right = $("#comparePlayerB");
+    if (left && document.activeElement !== left) left.value = compareState.leftName || "";
+    if (right && document.activeElement !== right) right.value = compareState.rightName || "";
+  }
+
+  function updateCompareDatalist() {
+    const list = $("#comparePlayersList");
+    if (!list) return;
+    const seen = new Set();
+    const fragment = document.createDocumentFragment();
+    leaderboardState.players.forEach((profile) => {
+      const name = String(profile?.name || profile?.username || "").trim();
+      const key = identityKey(name);
+      if (!name || !key || seen.has(key)) return;
+      seen.add(key);
+      const option = document.createElement("option");
+      option.value = name;
+      option.label = `LVL ${integer(profile.level, 1)} · ${profile.online ? t("onlineNow") : t("offlineNow")}`;
+      fragment.append(option);
+    });
+    list.replaceChildren(fragment);
+  }
+
+  function compareStateMessage(title, text = "", tone = "") {
+    const body = $("#compareBody");
+    if (!body) return;
+    const state = document.createElement("div");
+    state.className = `leaderboard-state${tone ? ` is-${tone}` : ""}`;
+    const strong = document.createElement("strong");
+    strong.textContent = title;
+    state.append(strong);
+    if (text) {
+      const p = document.createElement("p");
+      p.textContent = text;
+      state.append(p);
+    }
+    body.replaceChildren(state);
+  }
+
+  function compareMetricRows(left, right) {
+    const metrics = [
+      { key: "level", label: t("compareMetricLevel"), left: left.level, right: right.level, format: (v) => `LVL ${integer(v, 1)}`, better: "high" },
+      { key: "kills", label: t("kills"), left: left.kills, right: right.kills, format: formatCompactNumber, better: "high" },
+      { key: "deaths", label: t("deaths"), left: left.deaths, right: right.deaths, format: formatCompactNumber, better: "low" },
+      { key: "kd", label: t("kd"), left: left.kd, right: right.kd, format: (v) => Number(v || 0).toFixed(2), better: "high" },
+      { key: "time", label: t("gameTime"), left: left.timeSec, right: right.timeSec, format: formatGameTime, better: "high" },
+      { key: "matches", label: t("matches"), left: left.matches, right: right.matches, format: formatCompactNumber, better: "high" },
+      { key: "wins", label: t("wins"), left: left.wins, right: right.wins, format: formatCompactNumber, better: "high" },
+      { key: "winRate", label: t("winRate"), left: left.winRate, right: right.winRate, format: (v) => `${integer(v, 0, 0, 100)}%`, better: "high" },
+      { key: "tokens", label: t("tokens"), left: left.tokens, right: right.tokens, format: formatCompactNumber, better: "high" }
+    ];
+    let leftScore = 0;
+    let rightScore = 0;
+    const rows = document.createElement("div");
+    rows.className = "compare-metrics";
+    metrics.forEach((metric) => {
+      const a = Number(metric.left || 0);
+      const b = Number(metric.right || 0);
+      let winner = "tie";
+      if (a !== b) {
+        const leftWins = metric.better === "low" ? a < b : a > b;
+        winner = leftWins ? "left" : "right";
+        if (leftWins) leftScore += 1;
+        else rightScore += 1;
+      }
+      const row = document.createElement("div");
+      row.className = "compare-metric-row";
+      const leftValue = document.createElement("strong");
+      leftValue.className = `compare-metric-row__value${winner === "left" ? " is-winner" : ""}`;
+      leftValue.textContent = metric.format(metric.left);
+      const label = document.createElement("small");
+      label.textContent = metric.label;
+      const rightValue = document.createElement("strong");
+      rightValue.className = `compare-metric-row__value${winner === "right" ? " is-winner" : ""}`;
+      rightValue.textContent = metric.format(metric.right);
+      row.append(leftValue, label, rightValue);
+      rows.append(row);
+    });
+    return { rows, leftScore, rightScore };
+  }
+
+  function createCompareHero(profile, side) {
+    const card = document.createElement("article");
+    card.className = `compare-player-card compare-player-card--${side}`;
+    const avatar = createAvatarImage(profile.avatarId, "compare-player-card__avatar", `${t("avatar")}: ${profile.name}`);
+    const copy = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = profile.name;
+    name.title = profile.name;
+    const meta = document.createElement("div");
+    meta.className = "compare-player-card__meta";
+    meta.append(createRoleBadge(profile.role));
+    const online = document.createElement("span");
+    online.className = `leaderboard-online${profile.online ? " is-online" : ""}`;
+    online.textContent = profile.online ? t("onlineNow") : t("offlineNow");
+    meta.append(online);
+    const level = document.createElement("b");
+    level.textContent = `LVL ${profile.level}`;
+    copy.append(name, meta, level);
+    card.append(avatar, copy);
+    return card;
+  }
+
+  function renderPlayerComparison() {
+    syncCompareInputs();
+    updateCompareDatalist();
+    if (compareState.loading) {
+      compareStateMessage(t("compareLoading"));
+      return;
+    }
+    if (compareState.error) {
+      const key = compareState.error === "same_player" ? "compareSamePlayer" : compareState.error === "player_not_found" ? "compareNotFound" : "compareError";
+      compareStateMessage(t(key), "", "error");
+      return;
+    }
+    const left = compareState.leftProfile;
+    const right = compareState.rightProfile;
+    if (!left || !right) {
+      compareStateMessage(t("comparePickPlayers"), t("comparePickPlayersText"));
+      return;
+    }
+
+    const body = $("#compareBody");
+    if (!body) return;
+    const duel = document.createElement("div");
+    duel.className = "compare-duel";
+    const center = document.createElement("div");
+    center.className = "compare-duel__vs";
+    center.innerHTML = `<span>VS</span>`;
+    duel.append(createCompareHero(left, "left"), center, createCompareHero(right, "right"));
+
+    const metricData = compareMetricRows(left, right);
+    const score = document.createElement("div");
+    score.className = "compare-score";
+    const eyebrow = document.createElement("small");
+    eyebrow.textContent = t("compareScore");
+    const value = document.createElement("strong");
+    value.textContent = `${metricData.leftScore} : ${metricData.rightScore}`;
+    const verdict = document.createElement("p");
+    if (metricData.leftScore === metricData.rightScore) verdict.textContent = t("compareDraw");
+    else verdict.textContent = `${t("compareAdvantage")}: ${metricData.leftScore > metricData.rightScore ? left.name : right.name}`;
+    score.append(eyebrow, value, verdict);
+
+    body.replaceChildren(duel, score, metricData.rows);
+  }
+
+  async function fetchComparisonProfile(name) {
+    const normalizedName = String(name || "").trim();
+    if (!normalizedName) throw new Error("player_not_found");
+    const endpoint = playerEndpoint();
+    if (!endpoint) throw new Error("compare_unavailable");
+    const separator = endpoint.includes("?") ? "&" : "?";
+    const response = await fetch(`${endpoint}${separator}name=${encodeURIComponent(normalizedName)}&_=${Date.now()}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 404 || data.error === "player_not_found") throw new Error("player_not_found");
+    if (!response.ok || data.ok === false || !data.player) throw new Error(String(data.error || `HTTP_${response.status}`));
+    return normalizePublicProfile(data.player);
+  }
+
+  async function runPlayerComparison() {
+    if (compareState.loading) return;
+    const names = compareInputNames();
+    compareState.leftName = names.left;
+    compareState.rightName = names.right;
+    compareState.leftProfile = null;
+    compareState.rightProfile = null;
+    compareState.error = "";
+    if (!names.left || !names.right) {
+      renderPlayerComparison();
+      return;
+    }
+    if (identityKey(names.left) === identityKey(names.right)) {
+      compareState.error = "same_player";
+      renderPlayerComparison();
+      return;
+    }
+    compareState.loading = true;
+    renderPlayerComparison();
+    try {
+      const [left, right] = await Promise.all([
+        fetchComparisonProfile(names.left),
+        fetchComparisonProfile(names.right)
+      ]);
+      compareState.leftProfile = left;
+      compareState.rightProfile = right;
+      compareState.leftName = left.name;
+      compareState.rightName = right.name;
+    } catch (error) {
+      compareState.error = String(error?.message || error || "compare_failed") === "player_not_found" ? "player_not_found" : "compare_failed";
+    }
+    compareState.loading = false;
+    renderPlayerComparison();
+  }
+
+  async function preparePlayerComparison() {
+    if (!compareState.leftName) {
+      compareState.leftName = String(authState.profile?.name || authState.account?.username || "").trim();
+    }
+    syncCompareInputs();
+    renderPlayerComparison();
+    if (!leaderboardState.players.length && !leaderboardState.loading) {
+      await fetchLeaderboard("level", false);
+      updateCompareDatalist();
+    } else {
+      updateCompareDatalist();
+    }
+  }
+
+  function compareWithSelectedPlayer(name) {
+    const selected = String(name || "").trim();
+    if (!selected) return;
+    const current = String(authState.profile?.name || authState.account?.username || "").trim();
+    if (current && identityKey(current) !== identityKey(selected)) {
+      compareState.leftName = current;
+      compareState.rightName = selected;
+    } else if (!compareState.leftName || identityKey(compareState.leftName) === identityKey(selected)) {
+      compareState.leftName = selected;
+      compareState.rightName = "";
+    } else {
+      compareState.rightName = selected;
+    }
+    compareState.leftProfile = null;
+    compareState.rightProfile = null;
+    compareState.error = "";
+    setPlayerModal(false);
+    seasonArchiveState.mode = "compare";
+    showView("top");
+    syncCompareInputs();
+    renderPlayerComparison();
+    if (compareState.leftName && compareState.rightName) void runPlayerComparison();
   }
 
   function seasonDateLabel(seasonKey) {
@@ -1937,12 +2230,13 @@
   }
 
   function setRankingMode(mode) {
-    const normalized = ["current", "hall", "seasons"].includes(mode) ? mode : "current";
+    const normalized = ["current", "hall", "seasons", "compare"].includes(mode) ? mode : "current";
     seasonArchiveState.mode = normalized;
     renderRankingMode();
     if (normalized === "current") void fetchLeaderboard(leaderboardState.sort, false);
     if (normalized === "hall") void fetchHallOfFame(false);
     if (normalized === "seasons") void fetchSeasonList(false);
+    if (normalized === "compare") void preparePlayerComparison();
   }
 
   function hallMetricValue(player, category) {
@@ -2326,6 +2620,12 @@
         playerDetailStat(t("winRate"), `${profile.winRate}%`)
       );
       profileSection.append(stats);
+      const compareAction = document.createElement("button");
+      compareAction.type = "button";
+      compareAction.className = "primary-button player-compare-action";
+      compareAction.dataset.comparePlayer = profile.name;
+      compareAction.textContent = `VS · ${t("compareWithPlayer")}`;
+      profileSection.append(compareAction);
     } else if (playerModalState.loading) {
       const state = document.createElement("p");
       state.className = "player-detail__message";
@@ -3771,7 +4071,8 @@
       renderRankingMode();
       if (seasonArchiveState.mode === "current") fetchLeaderboard(leaderboardState.sort, false);
       else if (seasonArchiveState.mode === "hall") fetchHallOfFame(false);
-      else fetchSeasonList(false);
+      else if (seasonArchiveState.mode === "seasons") fetchSeasonList(false);
+      else void preparePlayerComparison();
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -7853,6 +8154,25 @@
     $("#playerModal")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) setPlayerModal(false); });
     $$('[data-rank-sort]').forEach((button) => button.addEventListener("click", () => fetchLeaderboard(button.dataset.rankSort, true)));
     $$('[data-rank-mode]').forEach((button) => button.addEventListener("click", () => setRankingMode(button.dataset.rankMode)));
+    $("#comparePlayersButton")?.addEventListener("click", () => void runPlayerComparison());
+    $("#compareSwapButton")?.addEventListener("click", () => {
+      const names = compareInputNames();
+      compareState.leftName = names.right;
+      compareState.rightName = names.left;
+      const leftProfile = compareState.leftProfile;
+      compareState.leftProfile = compareState.rightProfile;
+      compareState.rightProfile = leftProfile;
+      compareState.error = "";
+      syncCompareInputs();
+      renderPlayerComparison();
+    });
+    [$("#comparePlayerA"), $("#comparePlayerB")].forEach((input) => input?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); void runPlayerComparison(); }
+    }));
+    $("#playerModalBody")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-compare-player]");
+      if (button) compareWithSelectedPlayer(button.dataset.comparePlayer);
+    });
     $("#seasonHistoryBody")?.addEventListener("click", (event) => {
       const seasonButton = event.target.closest("[data-season-key]");
       if (seasonButton) { void fetchSeasonHistory(seasonButton.dataset.seasonKey, "level"); return; }
