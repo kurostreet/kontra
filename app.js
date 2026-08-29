@@ -1,4 +1,4 @@
-/* KONTRA SITE v46 — player comparison VS */
+/* KONTRA SITE v47 — player comparison VS picker */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -258,6 +258,8 @@
       compareDraw: "DRAW",
       compareMetricLevel: "LEVEL",
       compareWithPlayer: "COMPARE PLAYER",
+      compareTopPickTitle: "CHOOSE FROM TOP",
+      compareTopPickHint: "Tap Player A or B, then choose a player below.",
       hallLoading: "LOADING HALL OF FAME...",
       seasonLoading: "LOADING SEASONS...",
       hallWaiting: "HALL OF FAME IS WAITING FOR THE FIRST FINISHED SEASON",
@@ -766,6 +768,8 @@
       compareDraw: "НИЧЬЯ",
       compareMetricLevel: "УРОВЕНЬ",
       compareWithPlayer: "СРАВНИТЬ ИГРОКА",
+      compareTopPickTitle: "ВЫБРАТЬ ИЗ ТОПА",
+      compareTopPickHint: "Нажми поле Игрок A или B, затем выбери игрока ниже.",
       hallLoading: "ЗАГРУЗКА ЗАЛА СЛАВЫ...",
       seasonLoading: "ЗАГРУЗКА СЕЗОНОВ...",
       hallWaiting: "ЗАЛ СЛАВЫ ЖДЁТ ЗАВЕРШЕНИЯ ПЕРВОГО СЕЗОНА",
@@ -1075,7 +1079,8 @@
     rightProfile: null,
     loading: false,
     error: "",
-    message: ""
+    message: "",
+    pickSide: "right"
   };
   let seasonArchiveState = {
     mode: "current",
@@ -1862,7 +1867,19 @@
     summary.className = "leaderboard-player__summary";
     summary.innerHTML = `<span>LVL <b>${profile.level}</b></span><span>${t("kills")} <b>${formatCompactNumber(profile.kills)}</b></span><span>K/D <b>${profile.kd.toFixed(2)}</b></span>`;
 
-    row.append(rank, avatar, identity, metric, summary);
+    const versus = document.createElement("button");
+    versus.type = "button";
+    versus.className = "leaderboard-player__vs";
+    versus.dataset.comparePlayer = profile.name;
+    versus.textContent = "VS";
+    versus.setAttribute("aria-label", `${t("compareWithPlayer")}: ${profile.name}`);
+    versus.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      compareWithSelectedPlayer(profile.name);
+    });
+
+    row.append(rank, avatar, identity, metric, summary, versus);
     bindPlayerActivation(row, profile.online
       ? { name: profile.name, team: "UNKNOWN", alive: true, hp: 0, armor: 0, score: 0, deaths: 0, bot: false }
       : null, profile);
@@ -1930,6 +1947,7 @@
     leaderboardState.loading = false;
     renderLeaderboard();
     updateCompareDatalist();
+    renderCompareTopPicker();
     if (window.__kontraLastStatus) {
       renderPlayersPreview(window.__kontraLastStatus);
       renderScoreboard(window.__kontraLastStatus);
@@ -1967,6 +1985,60 @@
       fragment.append(option);
     });
     list.replaceChildren(fragment);
+  }
+
+  function syncComparePickTarget() {
+    const left = $("#comparePlayerA");
+    const right = $("#comparePlayerB");
+    left?.closest(".compare-picker__field")?.classList.toggle("is-pick-target", compareState.pickSide === "left");
+    right?.closest(".compare-picker__field")?.classList.toggle("is-pick-target", compareState.pickSide === "right");
+  }
+
+  function renderCompareTopPicker() {
+    const picker = $("#compareTopPicker");
+    if (!picker) return;
+    const fragment = document.createDocumentFragment();
+    const seen = new Set();
+    leaderboardState.players.forEach((profile) => {
+      const name = String(profile?.name || profile?.username || "").trim();
+      const key = identityKey(name);
+      if (!name || !key || seen.has(key)) return;
+      seen.add(key);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "compare-top-player";
+      button.dataset.comparePick = name;
+      const rank = integer(profile.rank, 0, 0, 9999);
+      button.innerHTML = `<span>#${rank || "—"}</span><strong></strong><small>LVL ${integer(profile.level, 1)}</small>`;
+      button.querySelector("strong").textContent = name;
+      if (profile.online) button.classList.add("is-online");
+      fragment.append(button);
+    });
+    picker.replaceChildren(fragment);
+    syncComparePickTarget();
+  }
+
+  function pickComparePlayerFromTop(name) {
+    const selected = String(name || "").trim();
+    if (!selected) return;
+    const left = $("#comparePlayerA");
+    const right = $("#comparePlayerB");
+    let side = compareState.pickSide === "left" ? "left" : "right";
+    if (side === "right" && !String(left?.value || compareState.leftName || "").trim()) side = "left";
+    if (side === "left") {
+      compareState.leftName = selected;
+      if (left) left.value = selected;
+      compareState.pickSide = "right";
+      right?.focus({ preventScroll: true });
+    } else {
+      compareState.rightName = selected;
+      if (right) right.value = selected;
+    }
+    compareState.leftProfile = null;
+    compareState.rightProfile = null;
+    compareState.error = "";
+    syncComparePickTarget();
+    renderPlayerComparison();
   }
 
   function compareStateMessage(title, text = "", tone = "") {
@@ -2052,6 +2124,7 @@
   function renderPlayerComparison() {
     syncCompareInputs();
     updateCompareDatalist();
+    renderCompareTopPicker();
     if (compareState.loading) {
       compareStateMessage(t("compareLoading"));
       return;
@@ -2147,13 +2220,17 @@
     if (!compareState.leftName) {
       compareState.leftName = String(authState.profile?.name || authState.account?.username || "").trim();
     }
+    compareState.pickSide = compareState.leftName && !compareState.rightName ? "right" : "left";
     syncCompareInputs();
+    syncComparePickTarget();
     renderPlayerComparison();
     if (!leaderboardState.players.length && !leaderboardState.loading) {
       await fetchLeaderboard("level", false);
       updateCompareDatalist();
+      renderCompareTopPicker();
     } else {
       updateCompareDatalist();
+      renderCompareTopPicker();
     }
   }
 
@@ -8169,6 +8246,12 @@
     [$("#comparePlayerA"), $("#comparePlayerB")].forEach((input) => input?.addEventListener("keydown", (event) => {
       if (event.key === "Enter") { event.preventDefault(); void runPlayerComparison(); }
     }));
+    $("#comparePlayerA")?.addEventListener("focus", () => { compareState.pickSide = "left"; syncComparePickTarget(); });
+    $("#comparePlayerB")?.addEventListener("focus", () => { compareState.pickSide = "right"; syncComparePickTarget(); });
+    $("#compareTopPicker")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-compare-pick]");
+      if (button) pickComparePlayerFromTop(button.dataset.comparePick);
+    });
     $("#playerModalBody")?.addEventListener("click", (event) => {
       const button = event.target.closest("[data-compare-player]");
       if (button) compareWithSelectedPlayer(button.dataset.comparePlayer);

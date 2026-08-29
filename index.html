@@ -7,9 +7,9 @@
   <meta name="description" content="KONTRA // SURVIVAL — live server dashboard and player portal.">
   <title>KONTRA // SURVIVAL</title>
   <link rel="icon" href="assets/kontra-zombie-logo.webp" type="image/webp">
-  <link rel="stylesheet" href="styles.css?v=44">
+  <link rel="stylesheet" href="styles.css?v=45">
   <script src="config.js?v=31"></script>
-  <script src="app.js?v=49" defer></script>
+  <script src="app.js?v=50" defer></script>
 </head>
 <body data-build="v38-ui-polish">
   <div class="ambient ambient--one" aria-hidden="true"></div>
@@ -373,6 +373,13 @@
               </label>
             </div>
             <datalist id="comparePlayersList"></datalist>
+            <div class="compare-top-select">
+              <div class="compare-top-select__head">
+                <strong data-i18n="compareTopPickTitle">CHOOSE FROM TOP</strong>
+                <small data-i18n="compareTopPickHint">Tap Player A or B, then choose a player below.</small>
+              </div>
+              <div id="compareTopPicker" class="compare-top-picker"></div>
+            </div>
             <button type="button" class="primary-button compare-submit" id="comparePlayersButton" data-i18n="compareButton">COMPARE</button>
             <div id="compareBody" class="compare-body">
               <div class="leaderboard-state"><strong data-i18n="comparePickPlayers">CHOOSE TWO PLAYERS</strong><p data-i18n="comparePickPlayersText">Start typing a nickname.</p></div>
