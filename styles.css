@@ -4847,3 +4847,248 @@ body.theme-day .drawer-kontra-server-install .drawer-action__copy small { color:
     margin-top: -48px;
   }
 }
+
+/* ========================================================================== */
+/* KONTRA SITE v45 — HALL OF FAME + SEASON HISTORY                           */
+/* ========================================================================== */
+.ranking-mode-tabs {
+  margin: 0 0 14px;
+  padding: 5px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  border: 1px solid rgba(44, 133, 255, .18);
+  border-radius: 17px;
+  background: rgba(3, 8, 15, .9);
+}
+.ranking-mode-tabs button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: #64748a;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .055em;
+  cursor: pointer;
+}
+.ranking-mode-tabs button.is-active {
+  color: #ff575d;
+  border-color: rgba(255, 61, 67, .38);
+  background: linear-gradient(180deg, rgba(255, 47, 54, .13), rgba(255, 47, 54, .035));
+  box-shadow: inset 0 0 24px rgba(255, 61, 67, .025), 0 0 18px rgba(255, 61, 67, .055);
+}
+.ranking-mode-panel { display: none; animation: viewIn .24s ease both; }
+.ranking-mode-panel.is-active { display: block; }
+
+.hall-of-fame-panel,
+.season-history-panel { overflow: hidden; }
+.hall-of-fame-head .panel-icon { color: #ffd75a; }
+.hall-of-fame-head > small,
+.season-history-head > small { max-width: 48%; }
+.hall-of-fame-body,
+.season-history-body { min-height: 240px; }
+
+.hall-of-fame-grid {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.hall-category {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(53, 137, 255, .16);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 90% 5%, rgba(255, 58, 65, .085), transparent 38%),
+    linear-gradient(145deg, rgba(8, 14, 24, .96), rgba(3, 7, 13, .96));
+}
+.hall-category:first-child {
+  grid-column: 1 / -1;
+  border-color: rgba(255, 202, 65, .28);
+  background:
+    radial-gradient(circle at 90% 5%, rgba(255, 206, 67, .10), transparent 40%),
+    radial-gradient(circle at 5% 95%, rgba(255, 55, 63, .07), transparent 42%),
+    linear-gradient(145deg, rgba(13, 15, 20, .98), rgba(4, 7, 13, .98));
+}
+.hall-category > header {
+  min-height: 54px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.hall-category__icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 69, 75, .34);
+  border-radius: 12px;
+  color: #ff5a60;
+  background: rgba(255, 58, 64, .07);
+  font: 800 10px/1 ui-monospace, monospace;
+}
+.hall-category:first-child .hall-category__icon {
+  color: #ffd75a;
+  border-color: rgba(255, 211, 75, .32);
+  background: rgba(255, 211, 75, .07);
+  font-family: Georgia, serif;
+  font-size: 18px;
+}
+.hall-category > header div { min-width: 0; display: grid; gap: 3px; }
+.hall-category > header small { color: #68778b; font-size: 7px; letter-spacing: .11em; }
+.hall-category > header strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #eef4ff; font-size: 12px; }
+.hall-category__winner {
+  min-height: 96px;
+  padding: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hall-category__avatar {
+  width: 68px;
+  height: 74px;
+  flex: 0 0 68px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 201, 67, .42);
+  border-radius: 13px;
+  background: #050911;
+  box-shadow: 0 0 22px rgba(255, 200, 55, .08);
+}
+.hall-category__winner > div { min-width: 0; display: grid; gap: 6px; }
+.hall-category__winner span { color: #ffd75a; font: 800 9px/1 ui-monospace, monospace; letter-spacing: .08em; }
+.hall-category__winner strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.hall-category__winner b { color: #ff555b; font: 800 17px/1 ui-monospace, monospace; }
+.hall-category__podium { border-top: 1px solid rgba(255,255,255,.045); }
+.hall-podium-row {
+  min-height: 38px;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid rgba(255,255,255,.035);
+}
+.hall-podium-row:first-child { border-top: 0; }
+.hall-podium-row > span { color: #65748a; font: 800 9px/1 ui-monospace, monospace; }
+.hall-podium-row > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.hall-podium-row > b { color: #b9c8da; font: 800 10px/1 ui-monospace, monospace; }
+.hall-podium-row--1 > span,
+.hall-podium-row--1 > b { color: #ffd75a; }
+.hall-of-fame-note {
+  margin: 0;
+  padding: 0 18px 18px;
+  color: #68778b;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: .035em;
+}
+
+.season-card-list { display: grid; }
+.season-card {
+  width: 100%;
+  min-height: 88px;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  border: 0;
+  border-top: 1px solid rgba(48, 135, 255, .11);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.season-card:first-child { border-top: 0; }
+.season-card:active { background: rgba(255, 62, 68, .045); }
+.season-card__number {
+  width: 46px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 64, 70, .28);
+  border-radius: 13px;
+  color: #ff575d;
+  background: rgba(255, 55, 62, .045);
+  font: 800 14px/1 ui-monospace, monospace;
+}
+.season-card > div { min-width: 0; display: grid; gap: 5px; }
+.season-card small { color: #617187; font-size: 7px; letter-spacing: .12em; }
+.season-card strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #eff5ff; font-size: 14px; }
+.season-card p { margin: 0; color: #738297; font-size: 8px; line-height: 1.45; }
+.season-card > b { color: #ff575d; font-size: 24px; font-weight: 400; }
+
+.season-detail { min-width: 0; }
+.season-detail__top {
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.season-detail__top > div { min-width: 0; display: grid; gap: 4px; }
+.season-detail__top small { color: #63738a; font-size: 7px; letter-spacing: .12em; }
+.season-detail__top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.season-back-button {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 67, 73, .28);
+  border-radius: 11px;
+  background: rgba(255, 57, 64, .055);
+  color: #ff5a60;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  cursor: pointer;
+}
+.season-sort-tabs { margin: 12px 14px; width: auto; }
+.season-sort-tabs button { flex-basis: 96px; }
+.season-ranking-list { border-top: 1px solid rgba(255,255,255,.04); }
+.archived-player .leaderboard-player__metric strong { color: #ff555b; }
+
+body.theme-day .ranking-mode-tabs,
+body.theme-day .hall-category {
+  background: rgba(247, 250, 255, .94);
+  border-color: rgba(43, 119, 214, .18);
+}
+body.theme-day .ranking-mode-tabs button { color: #617087; }
+body.theme-day .ranking-mode-tabs button.is-active {
+  color: #d72d37;
+  border-color: rgba(215,45,55,.28);
+  background: rgba(221,45,55,.055);
+}
+body.theme-day .hall-category > header strong,
+body.theme-day .season-card strong { color: #192638; }
+body.theme-day .hall-category__winner b,
+body.theme-day .season-card__number,
+body.theme-day .season-card > b,
+body.theme-day .season-back-button { color: #d72d37; }
+body.theme-day .hall-podium-row > strong { color: #243246; }
+body.theme-day .hall-category__avatar { background: #eef3fa; }
+body.theme-day .season-card { border-top-color: rgba(43,119,214,.12); }
+
+@media (max-width: 620px) {
+  .ranking-mode-tabs button { min-height: 46px; padding: 7px 5px; font-size: 8px; }
+  .hall-of-fame-grid { grid-template-columns: 1fr; padding: 12px; gap: 10px; }
+  .hall-category:first-child { grid-column: auto; }
+  .hall-category__winner { min-height: 86px; }
+  .hall-category__avatar { width: 60px; height: 66px; flex-basis: 60px; }
+  .season-card { padding: 12px 14px; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 10px; }
+  .season-card__number { width: 42px; height: 48px; }
+}
+
+@media (max-width: 390px) {
+  .ranking-mode-tabs { gap: 3px; padding: 4px; }
+  .ranking-mode-tabs button { font-size: 7px; letter-spacing: .025em; }
+  .hall-of-fame-head > small,
+  .season-history-head > small { max-width: 42%; font-size: 7px; }
+  .season-detail__top { align-items: flex-start; }
+  .season-back-button { max-width: 42%; }
+}

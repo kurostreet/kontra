@@ -1,4 +1,4 @@
-/* KONTRA SITE v41 — LVL MOD v89 + compact KONTRA ID login */
+/* KONTRA SITE v42 — Hall of Fame + season history */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -216,6 +216,24 @@
       topPlayers: "TOP PLAYERS",
       rankingPending: "The global LVL MOD leaderboard will appear here.",
       globalRanking: "GLOBAL LVL MOD RANKING",
+      currentSeason: "CURRENT SEASON",
+      hallOfFame: "HALL OF FAME",
+      seasonHistory: "SEASON HISTORY",
+      hallLoading: "LOADING HALL OF FAME...",
+      seasonLoading: "LOADING SEASONS...",
+      hallWaiting: "HALL OF FAME IS WAITING FOR THE FIRST FINISHED SEASON",
+      hallWaitingText: "Champions will appear here automatically after the first quarterly season reset.",
+      seasonEmpty: "NO FINISHED SEASONS YET",
+      seasonEmptyText: "Season history will be created automatically when the first season ends.",
+      seasonChampion: "SEASON CHAMPION",
+      seasonFinished: "SEASON FINISHED",
+      seasonPlayers: "PLAYERS ARCHIVED",
+      seasonOpen: "OPEN SEASON",
+      seasonBack: "ALL SEASONS",
+      seasonArchive: "ARCHIVED RANKING",
+      seasonLoadError: "SEASON DATA IS TEMPORARILY UNAVAILABLE",
+      hallLoadError: "HALL OF FAME IS TEMPORARILY UNAVAILABLE",
+      richestAtFinish: "BALANCE AT SEASON END",
       leaderboardLoading: "LOADING RANKING...",
       leaderboardEmpty: "NO PLAYERS IN RANKING YET",
       leaderboardError: "RANKING IS TEMPORARILY UNAVAILABLE",
@@ -663,6 +681,24 @@
       topPlayers: "ТОП ИГРОКОВ",
       rankingPending: "Здесь появится глобальный рейтинг LVL MOD.",
       globalRanking: "ГЛОБАЛЬНЫЙ РЕЙТИНГ LVL MOD",
+      currentSeason: "ТЕКУЩИЙ СЕЗОН",
+      hallOfFame: "ЗАЛ СЛАВЫ",
+      seasonHistory: "ИСТОРИЯ СЕЗОНОВ",
+      hallLoading: "ЗАГРУЗКА ЗАЛА СЛАВЫ...",
+      seasonLoading: "ЗАГРУЗКА СЕЗОНОВ...",
+      hallWaiting: "ЗАЛ СЛАВЫ ЖДЁТ ЗАВЕРШЕНИЯ ПЕРВОГО СЕЗОНА",
+      hallWaitingText: "Чемпионы появятся здесь автоматически после первого квартального сброса сезона.",
+      seasonEmpty: "ЗАВЕРШЁННЫХ СЕЗОНОВ ПОКА НЕТ",
+      seasonEmptyText: "История будет создана автоматически после окончания первого сезона.",
+      seasonChampion: "ЧЕМПИОН СЕЗОНА",
+      seasonFinished: "СЕЗОН ЗАВЕРШЁН",
+      seasonPlayers: "ИГРОКОВ В АРХИВЕ",
+      seasonOpen: "ОТКРЫТЬ СЕЗОН",
+      seasonBack: "ВСЕ СЕЗОНЫ",
+      seasonArchive: "АРХИВНЫЙ РЕЙТИНГ",
+      seasonLoadError: "ДАННЫЕ СЕЗОНА ВРЕМЕННО НЕДОСТУПНЫ",
+      hallLoadError: "ЗАЛ СЛАВЫ ВРЕМЕННО НЕДОСТУПЕН",
+      richestAtFinish: "БАЛАНС НА КОНЕЦ СЕЗОНА",
       leaderboardLoading: "ЗАГРУЗКА РЕЙТИНГА...",
       leaderboardEmpty: "В РЕЙТИНГЕ ПОКА НЕТ ИГРОКОВ",
       leaderboardError: "РЕЙТИНГ ВРЕМЕННО НЕДОСТУПЕН",
@@ -939,6 +975,23 @@
     loading: false,
     loadedAt: 0,
     players: []
+  };
+  let seasonArchiveState = {
+    mode: "current",
+    hallLoading: false,
+    hallLoadedAt: 0,
+    hall: null,
+    hallError: "",
+    seasonsLoading: false,
+    seasonsLoadedAt: 0,
+    seasons: [],
+    seasonsError: "",
+    selectedSeason: "",
+    seasonSort: "level",
+    seasonLoading: false,
+    seasonMeta: null,
+    seasonPlayers: [],
+    seasonError: ""
   };
   let playerModalState = {
     requestId: 0,
@@ -1314,6 +1367,18 @@
 
   function playerEndpoint() {
     return String(config.playerEndpoint || "").trim();
+  }
+
+  function seasonsEndpoint() {
+    return String(config.seasonsEndpoint || "/api/seasons").trim();
+  }
+
+  function seasonEndpoint() {
+    return String(config.seasonEndpoint || "/api/season").trim();
+  }
+
+  function hallOfFameEndpoint() {
+    return String(config.hallOfFameEndpoint || "/api/hall-of-fame").trim();
   }
 
   function controlBase() {
@@ -1763,6 +1828,355 @@
       renderPlayersPreview(window.__kontraLastStatus);
       renderScoreboard(window.__kontraLastStatus);
     }
+  }
+
+  function seasonDateLabel(seasonKey) {
+    const raw = String(seasonKey || "").trim();
+    const match = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!match) return raw || "—";
+    const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+    return date.toLocaleDateString(language === "ru" ? "ru-RU" : "en-GB", {
+      day: "2-digit", month: "long", year: "numeric"
+    });
+  }
+
+  function seasonTimestampLabel(value) {
+    const raw = Number(value || 0);
+    if (!raw) return "—";
+    const ms = raw < 1e12 ? raw * 1000 : raw;
+    return new Date(ms).toLocaleString(language === "ru" ? "ru-RU" : "en-GB", {
+      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function hallCategoryInfo(category) {
+    if (category === "kills") return { label: t("kills"), icon: "☠" };
+    if (category === "wins") return { label: t("wins"), icon: "W" };
+    if (category === "time") return { label: t("gameTime"), icon: "◷" };
+    if (category === "tokens") return { label: t("richestPlayers"), icon: "T" };
+    return { label: t("level"), icon: "LVL" };
+  }
+
+  function archivedMetric(profile, sort) {
+    if (sort === "kills") return { label: t("kills"), value: formatCompactNumber(profile.kills) };
+    if (sort === "wins") return { label: t("wins"), value: formatCompactNumber(profile.wins) };
+    if (sort === "time") return { label: t("gameTime"), value: formatGameTime(profile.timeSec) };
+    if (sort === "tokens") return { label: t("tokens"), value: formatCompactNumber(profile.tokens) };
+    if (sort === "kd") return { label: t("kd"), value: profile.kd.toFixed(2) };
+    if (sort === "matches") return { label: t("matches"), value: formatCompactNumber(profile.matches) };
+    return { label: t("level"), value: `LVL ${profile.level}` };
+  }
+
+  function renderRankingMode() {
+    $$('[data-rank-mode]').forEach((button) => {
+      const active = button.dataset.rankMode === seasonArchiveState.mode;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+    $$('[data-rank-mode-panel]').forEach((panel) => {
+      panel.classList.toggle("is-active", panel.dataset.rankModePanel === seasonArchiveState.mode);
+    });
+  }
+
+  function setRankingMode(mode) {
+    const normalized = ["current", "hall", "seasons"].includes(mode) ? mode : "current";
+    seasonArchiveState.mode = normalized;
+    renderRankingMode();
+    if (normalized === "current") void fetchLeaderboard(leaderboardState.sort, false);
+    if (normalized === "hall") void fetchHallOfFame(false);
+    if (normalized === "seasons") void fetchSeasonList(false);
+  }
+
+  function hallMetricValue(player, category) {
+    if (!player) return "—";
+    if (category === "kills") return formatCompactNumber(player.kills);
+    if (category === "wins") return formatCompactNumber(player.wins);
+    if (category === "time") return formatGameTime(player.timeSec);
+    if (category === "tokens") return formatCompactNumber(player.tokens);
+    return `LVL ${player.level}`;
+  }
+
+  function createHallCategory(category, podium = []) {
+    const info = hallCategoryInfo(category);
+    const card = document.createElement("article");
+    card.className = `hall-category hall-category--${category}`;
+
+    const head = document.createElement("header");
+    const icon = document.createElement("span");
+    icon.className = "hall-category__icon";
+    icon.textContent = info.icon;
+    const copy = document.createElement("div");
+    const small = document.createElement("small");
+    small.textContent = t("seasonChampion");
+    const title = document.createElement("strong");
+    title.textContent = info.label;
+    copy.append(small, title);
+    head.append(icon, copy);
+
+    const winner = podium[0] ? normalizePublicProfile(podium[0]) : null;
+    const hero = document.createElement("div");
+    hero.className = "hall-category__winner";
+    if (winner) {
+      const avatar = createAvatarImage(winner.avatarId, "hall-category__avatar", `${t("avatar")}: ${winner.name}`);
+      const identity = document.createElement("div");
+      const crown = document.createElement("span"); crown.textContent = "♛ #1";
+      const name = document.createElement("strong"); name.textContent = winner.name;
+      const metric = document.createElement("b"); metric.textContent = hallMetricValue(winner, category);
+      identity.append(crown, name, metric);
+      hero.append(avatar, identity);
+    }
+
+    const list = document.createElement("div");
+    list.className = "hall-category__podium";
+    podium.slice(0, 3).forEach((raw, index) => {
+      const player = normalizePublicProfile(raw);
+      const row = document.createElement("div");
+      row.className = `hall-podium-row hall-podium-row--${index + 1}`;
+      const rank = document.createElement("span"); rank.textContent = `#${index + 1}`;
+      const name = document.createElement("strong"); name.textContent = player.name;
+      const value = document.createElement("b"); value.textContent = hallMetricValue(player, category);
+      row.append(rank, name, value);
+      list.append(row);
+    });
+
+    card.append(head, hero, list);
+    return card;
+  }
+
+  function renderHallOfFame() {
+    const body = $("#hallOfFameBody");
+    const label = $("#hallSeasonLabel");
+    if (!body) return;
+    if (seasonArchiveState.hallLoading && !seasonArchiveState.hall) {
+      renderInlineArchiveState(body, t("hallLoading"));
+      if (label) label.textContent = "—";
+      return;
+    }
+    if (seasonArchiveState.hallError) {
+      renderInlineArchiveState(body, t("hallLoadError"), "", "error");
+      if (label) label.textContent = "—";
+      return;
+    }
+    const data = seasonArchiveState.hall;
+    if (!data || data.ready !== true || !data.season) {
+      renderInlineArchiveState(body, t("hallWaiting"), t("hallWaitingText"));
+      if (label) label.textContent = "—";
+      return;
+    }
+    if (label) label.textContent = `${t("seasonFinished")}: ${seasonDateLabel(data.season.seasonKey)}`;
+    const shell = document.createElement("div");
+    shell.className = "hall-of-fame-grid";
+    ["level", "kills", "wins", "time", "tokens"].forEach((category) => {
+      shell.append(createHallCategory(category, Array.isArray(data.podiums?.[category]) ? data.podiums[category] : []));
+    });
+    const note = document.createElement("p");
+    note.className = "hall-of-fame-note";
+    note.textContent = `${t("seasonPlayers")}: ${formatCompactNumber(data.season.archivedPlayers || 0)} · ${t("richestAtFinish")}`;
+    body.replaceChildren(shell, note);
+  }
+
+  function renderInlineArchiveState(container, title, text = "", tone = "") {
+    const state = document.createElement("div");
+    state.className = `leaderboard-state${tone ? ` is-${tone}` : ""}`;
+    const strong = document.createElement("strong"); strong.textContent = title;
+    state.append(strong);
+    if (text) { const p = document.createElement("p"); p.textContent = text; state.append(p); }
+    container.replaceChildren(state);
+  }
+
+  async function fetchHallOfFame(force = false) {
+    const endpoint = hallOfFameEndpoint();
+    if (!endpoint || seasonArchiveState.hallLoading) return;
+    const now = Date.now();
+    if (!force && seasonArchiveState.hall && now - seasonArchiveState.hallLoadedAt < 60000) {
+      renderHallOfFame(); return;
+    }
+    seasonArchiveState.hallLoading = true;
+    seasonArchiveState.hallError = "";
+    renderHallOfFame();
+    try {
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const response = await fetch(`${endpoint}${separator}_=${Date.now()}`, { cache: "no-store", headers: { Accept: "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(String(data.error || `HTTP_${response.status}`));
+      seasonArchiveState.hall = data;
+      seasonArchiveState.hallLoadedAt = Date.now();
+    } catch (error) {
+      seasonArchiveState.hall = null;
+      seasonArchiveState.hallError = String(error?.message || error || "hall_failed");
+      console.warn("KONTRA Hall of Fame fetch failed", error);
+    }
+    seasonArchiveState.hallLoading = false;
+    renderHallOfFame();
+  }
+
+  function createSeasonCard(season, index) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "season-card";
+    button.dataset.seasonKey = String(season.seasonKey || "");
+    const number = document.createElement("span");
+    number.className = "season-card__number";
+    number.textContent = String(index + 1).padStart(2, "0");
+    const copy = document.createElement("div");
+    const small = document.createElement("small");
+    small.textContent = t("seasonFinished");
+    const title = document.createElement("strong");
+    title.textContent = seasonDateLabel(season.seasonKey);
+    const meta = document.createElement("p");
+    meta.textContent = `${t("seasonPlayers")}: ${formatCompactNumber(season.archivedPlayers || 0)} · ${seasonTimestampLabel(season.resetAt)}`;
+    copy.append(small, title, meta);
+    const arrow = document.createElement("b"); arrow.textContent = "›";
+    button.append(number, copy, arrow);
+    return button;
+  }
+
+  function createArchivedPlayer(profile) {
+    const row = document.createElement("article");
+    row.className = `leaderboard-player archived-player rank-${Math.min(profile.rank || 99, 4)}`;
+    const rank = document.createElement("strong");
+    rank.className = "leaderboard-player__rank";
+    const rankValue = integer(profile.rank, 0, 0, 1000000);
+    if (rankValue >= 1 && rankValue <= 3) {
+      const crown = document.createElement("span");
+      crown.className = `leaderboard-player__crown leaderboard-player__crown--${rankValue}`;
+      crown.textContent = "♛";
+      rank.append(crown);
+    }
+    const num = document.createElement("span");
+    num.className = "leaderboard-player__rank-number";
+    num.textContent = rankValue ? String(rankValue).padStart(2, "0") : "—";
+    rank.append(num);
+    const avatar = createAvatarImage(profile.avatarId, "leaderboard-player__avatar", `${t("avatar")}: ${profile.name}`);
+    const identity = document.createElement("div"); identity.className = "leaderboard-player__identity";
+    const name = document.createElement("strong"); name.textContent = profile.name;
+    const meta = document.createElement("div"); meta.className = "leaderboard-player__meta"; meta.append(createRoleBadge(profile.role));
+    identity.append(name, meta);
+    const metricData = archivedMetric(profile, seasonArchiveState.seasonSort);
+    const metric = document.createElement("div"); metric.className = "leaderboard-player__metric";
+    const value = document.createElement("strong"); value.textContent = metricData.value;
+    const label = document.createElement("small"); label.textContent = metricData.label;
+    metric.append(value, label);
+    const summary = document.createElement("div"); summary.className = "leaderboard-player__summary";
+    summary.innerHTML = `<span>LVL <b>${profile.level}</b></span><span>${t("kills")} <b>${formatCompactNumber(profile.kills)}</b></span><span>K/D <b>${profile.kd.toFixed(2)}</b></span><span>${t("wins")} <b>${formatCompactNumber(profile.wins)}</b></span>`;
+    row.append(rank, avatar, identity, metric, summary);
+    return row;
+  }
+
+  function renderSeasonHistory() {
+    const body = $("#seasonHistoryBody");
+    const meta = $("#seasonHistoryMeta");
+    if (!body) return;
+    if (seasonArchiveState.seasonsLoading && !seasonArchiveState.seasons.length) {
+      renderInlineArchiveState(body, t("seasonLoading"));
+      if (meta) meta.textContent = "—";
+      return;
+    }
+    if (seasonArchiveState.seasonsError) {
+      renderInlineArchiveState(body, t("seasonLoadError"), "", "error");
+      if (meta) meta.textContent = "—";
+      return;
+    }
+    if (!seasonArchiveState.selectedSeason) {
+      if (!seasonArchiveState.seasons.length) {
+        renderInlineArchiveState(body, t("seasonEmpty"), t("seasonEmptyText"));
+        if (meta) meta.textContent = "0";
+        return;
+      }
+      const list = document.createElement("div"); list.className = "season-card-list";
+      seasonArchiveState.seasons.forEach((season, index) => list.append(createSeasonCard(season, index)));
+      body.replaceChildren(list);
+      if (meta) meta.textContent = `${seasonArchiveState.seasons.length}`;
+      return;
+    }
+
+    if (seasonArchiveState.seasonLoading && !seasonArchiveState.seasonMeta) {
+      renderInlineArchiveState(body, t("seasonLoading")); return;
+    }
+    if (seasonArchiveState.seasonError) {
+      const wrapper = document.createElement("div");
+      renderInlineArchiveState(wrapper, t("seasonLoadError"), "", "error");
+      const back = document.createElement("button"); back.type = "button"; back.className = "season-back-button"; back.dataset.seasonBack = "1"; back.textContent = `‹ ${t("seasonBack")}`;
+      body.replaceChildren(back, wrapper); return;
+    }
+
+    const shell = document.createElement("div"); shell.className = "season-detail";
+    const top = document.createElement("div"); top.className = "season-detail__top";
+    const back = document.createElement("button"); back.type = "button"; back.className = "season-back-button"; back.dataset.seasonBack = "1"; back.textContent = `‹ ${t("seasonBack")}`;
+    const title = document.createElement("div");
+    const small = document.createElement("small"); small.textContent = t("seasonArchive");
+    const strong = document.createElement("strong"); strong.textContent = seasonDateLabel(seasonArchiveState.selectedSeason);
+    title.append(small, strong); top.append(back, title); shell.append(top);
+
+    const sorts = document.createElement("div"); sorts.className = "leaderboard-tabs season-sort-tabs"; sorts.setAttribute("role", "tablist");
+    const sortOptions = [["level", t("level")], ["kills", t("kills")], ["wins", t("wins")], ["time", t("gameTime")], ["tokens", t("tokens")], ["kd", t("kd")], ["matches", t("matches")]];
+    sortOptions.forEach(([key, labelText]) => {
+      const button = document.createElement("button"); button.type = "button"; button.dataset.seasonSort = key; button.textContent = labelText; button.classList.toggle("is-active", seasonArchiveState.seasonSort === key); sorts.append(button);
+    });
+    shell.append(sorts);
+
+    if (!seasonArchiveState.seasonPlayers.length) {
+      const empty = document.createElement("div"); renderInlineArchiveState(empty, t("leaderboardEmpty")); shell.append(empty);
+    } else {
+      const list = document.createElement("div"); list.className = "leaderboard-list season-ranking-list";
+      seasonArchiveState.seasonPlayers.forEach((profile) => list.append(createArchivedPlayer(profile)));
+      shell.append(list);
+    }
+    body.replaceChildren(shell);
+    if (meta) meta.textContent = `${t("seasonPlayers")}: ${formatCompactNumber(seasonArchiveState.seasonMeta?.archivedPlayers || seasonArchiveState.seasonPlayers.length)}`;
+  }
+
+  async function fetchSeasonList(force = false) {
+    const endpoint = seasonsEndpoint();
+    if (!endpoint || seasonArchiveState.seasonsLoading) return;
+    const now = Date.now();
+    if (!force && seasonArchiveState.seasonsLoadedAt && now - seasonArchiveState.seasonsLoadedAt < 60000) {
+      renderSeasonHistory(); return;
+    }
+    seasonArchiveState.seasonsLoading = true;
+    seasonArchiveState.seasonsError = "";
+    renderSeasonHistory();
+    try {
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const response = await fetch(`${endpoint}${separator}limit=50&_=${Date.now()}`, { cache: "no-store", headers: { Accept: "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(String(data.error || `HTTP_${response.status}`));
+      seasonArchiveState.seasons = Array.isArray(data.seasons) ? data.seasons : [];
+      seasonArchiveState.seasonsLoadedAt = Date.now();
+    } catch (error) {
+      seasonArchiveState.seasons = [];
+      seasonArchiveState.seasonsError = String(error?.message || error || "season_list_failed");
+      console.warn("KONTRA season list fetch failed", error);
+    }
+    seasonArchiveState.seasonsLoading = false;
+    renderSeasonHistory();
+  }
+
+  async function fetchSeasonHistory(seasonKey, sort = seasonArchiveState.seasonSort) {
+    const endpoint = seasonEndpoint();
+    if (!endpoint || seasonArchiveState.seasonLoading) return;
+    const key = String(seasonKey || "").trim();
+    if (!key) return;
+    seasonArchiveState.selectedSeason = key;
+    seasonArchiveState.seasonSort = ["level", "kills", "wins", "time", "tokens", "kd", "matches"].includes(sort) ? sort : "level";
+    seasonArchiveState.seasonLoading = true;
+    seasonArchiveState.seasonError = "";
+    seasonArchiveState.seasonMeta = null;
+    seasonArchiveState.seasonPlayers = [];
+    renderSeasonHistory();
+    try {
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const response = await fetch(`${endpoint}${separator}key=${encodeURIComponent(key)}&sort=${encodeURIComponent(seasonArchiveState.seasonSort)}&limit=100&_=${Date.now()}`, { cache: "no-store", headers: { Accept: "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(String(data.error || `HTTP_${response.status}`));
+      seasonArchiveState.seasonMeta = data.season || null;
+      seasonArchiveState.seasonPlayers = Array.isArray(data.players) ? data.players.map(normalizePublicProfile) : [];
+    } catch (error) {
+      seasonArchiveState.seasonError = String(error?.message || error || "season_history_failed");
+      console.warn("KONTRA season history fetch failed", error);
+    }
+    seasonArchiveState.seasonLoading = false;
+    renderSeasonHistory();
   }
 
   function playerTeamLabel(team) {
@@ -2411,6 +2825,9 @@
     if (window.__kontraLastStatus) renderStatus(window.__kontraLastStatus);
     renderAuth();
     renderLeaderboard();
+    renderRankingMode();
+    renderHallOfFame();
+    renderSeasonHistory();
     if ($("#playerModal")?.classList.contains("is-open")) renderPlayerModal();
     if ($("#controlModal")?.classList.contains("is-open") && settingsState.data && controlState.panel === "lvl") {
       $("#controlModalLead").textContent = t("persistentSettingsLead");
@@ -2991,7 +3408,12 @@
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    if (name === "top") fetchLeaderboard(leaderboardState.sort, false);
+    if (name === "top") {
+      renderRankingMode();
+      if (seasonArchiveState.mode === "current") fetchLeaderboard(leaderboardState.sort, false);
+      else if (seasonArchiveState.mode === "hall") fetchHallOfFame(false);
+      else fetchSeasonList(false);
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -7071,6 +7493,18 @@
     $$('[data-close-player]').forEach((button) => button.addEventListener("click", () => setPlayerModal(false)));
     $("#playerModal")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) setPlayerModal(false); });
     $$('[data-rank-sort]').forEach((button) => button.addEventListener("click", () => fetchLeaderboard(button.dataset.rankSort, true)));
+    $$('[data-rank-mode]').forEach((button) => button.addEventListener("click", () => setRankingMode(button.dataset.rankMode)));
+    $("#seasonHistoryBody")?.addEventListener("click", (event) => {
+      const seasonButton = event.target.closest("[data-season-key]");
+      if (seasonButton) { void fetchSeasonHistory(seasonButton.dataset.seasonKey, "level"); return; }
+      const backButton = event.target.closest("[data-season-back]");
+      if (backButton) {
+        seasonArchiveState.selectedSeason = ""; seasonArchiveState.seasonMeta = null; seasonArchiveState.seasonPlayers = []; seasonArchiveState.seasonError = "";
+        renderSeasonHistory(); return;
+      }
+      const sortButton = event.target.closest("[data-season-sort]");
+      if (sortButton && seasonArchiveState.selectedSeason) void fetchSeasonHistory(seasonArchiveState.selectedSeason, sortButton.dataset.seasonSort);
+    });
     $("#loginForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       if (authState.loading) return;
