@@ -1,4 +1,4 @@
-/* KONTRA SITE v43 — Hall of Fame + live season promos */
+/* KONTRA SITE v44 — Hall of Fame + live promos + profile promo redeem */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -39,6 +39,19 @@
       promoCopy: "COPY",
       promoCopied: "PROMO CODE COPIED",
       promoSynced: "SYNCED WITH SERVER",
+      promoRedeemTitle: "ACTIVATE PROMO CODE",
+      promoRedeemLead: "Redeem a server promo code here or in the in-game chat. Each code can be used once per account.",
+      promoRedeemPlaceholder: "ENTER PROMO CODE",
+      promoRedeemButton: "ACTIVATE",
+      promoRedeemHint: "The reward is issued by LVL MOD and saved to your game profile.",
+      promoRedeemSending: "CHECKING PROMO CODE...",
+      promoRedeemSuccess: "PROMO CODE ACTIVATED",
+      promoRedeemNotFound: "PROMO CODE NOT FOUND",
+      promoRedeemUsed: "THIS PROMO CODE HAS ALREADY BEEN USED",
+      promoRedeemInvalid: "ENTER A VALID PROMO CODE",
+      promoRedeemBusy: "ANOTHER ECONOMY OPERATION IS IN PROGRESS. TRY AGAIN.",
+      promoRedeemTimeout: "THE GAME SERVER DID NOT CONFIRM THE PROMO CODE IN TIME.",
+      promoRedeemUnavailable: "PROMO ACTIVATION IS TEMPORARILY UNAVAILABLE",
       profileLocked: "PROFILE IS LOCKED",
       profileLockedText: "Sign in through the game or with your username and password.",
       signIn: "SIGN IN",
@@ -511,6 +524,19 @@
       promoCopy: "КОПИРОВАТЬ",
       promoCopied: "ПРОМОКОД СКОПИРОВАН",
       promoSynced: "СИНХРОНИЗИРОВАНО С СЕРВЕРОМ",
+      promoRedeemTitle: "АКТИВИРОВАТЬ ПРОМОКОД",
+      promoRedeemLead: "Активируй серверный промокод здесь или в игровом чате. Каждый код можно использовать один раз на аккаунт.",
+      promoRedeemPlaceholder: "ВВЕДИ ПРОМОКОД",
+      promoRedeemButton: "АКТИВИРОВАТЬ",
+      promoRedeemHint: "Награду выдаёт LVL MOD и сохраняет прямо в игровой профиль.",
+      promoRedeemSending: "ПРОВЕРЯЕМ ПРОМОКОД...",
+      promoRedeemSuccess: "ПРОМОКОД АКТИВИРОВАН",
+      promoRedeemNotFound: "ПРОМОКОД НЕ НАЙДЕН",
+      promoRedeemUsed: "ЭТОТ ПРОМОКОД УЖЕ ИСПОЛЬЗОВАН",
+      promoRedeemInvalid: "ВВЕДИ КОРРЕКТНЫЙ ПРОМОКОД",
+      promoRedeemBusy: "СЕЙЧАС ВЫПОЛНЯЕТСЯ ДРУГАЯ ОПЕРАЦИЯ С ЭКОНОМИКОЙ. ПОПРОБУЙ ЕЩЁ РАЗ.",
+      promoRedeemTimeout: "ИГРОВОЙ СЕРВЕР НЕ ПОДТВЕРДИЛ ПРОМОКОД ВОВРЕМЯ.",
+      promoRedeemUnavailable: "АКТИВАЦИЯ ПРОМОКОДОВ ВРЕМЕННО НЕДОСТУПНА",
       profileLocked: "ПРОФИЛЬ ЗАКРЫТ",
       profileLockedText: "Войдите через игру или по логину и паролю.",
       signIn: "ВОЙТИ",
@@ -983,6 +1009,12 @@
     profile: null,
     security: null,
     sessionToken: localStorage.getItem(SESSION_KEY) || ""
+  };
+  let promoRedeemState = {
+    busy: false,
+    code: "",
+    message: "",
+    tone: ""
   };
   let leaderboardState = {
     sort: "level",
@@ -2600,6 +2632,150 @@
     grid.append(emailCard,googleCard); section.append(grid); return section;
   }
 
+  function parsePromoRedeemResult(value) {
+    const parts = String(value || "").split(":");
+    if (parts.length < 5 || parts[0] !== "promo_redeemed") return null;
+    const kind = parts[1] === "lvl" ? "lvl" : "tok";
+    const amount = integer(parts[2], 0, 0, 2147483647);
+    const level = integer(parts[3], authState.profile?.level || 1, 1, 2147483647);
+    const tokens = integer(parts[4], authState.profile?.tokens || 0, 0, 2147483647);
+    return { kind, amount, level, tokens };
+  }
+
+  function promoRedeemFailureText(code) {
+    const value = String(code || "");
+    if (value === "promo_not_found") return t("promoRedeemNotFound");
+    if (value === "promo_already_used") return t("promoRedeemUsed");
+    if (value === "invalid_promo" || value === "invalid_payload") return t("promoRedeemInvalid");
+    if (value === "economy_busy" || value === "command_rate_limited") return t("promoRedeemBusy");
+    if (["data_not_loaded", "profile_unavailable", "lvl_promo_bridge_unavailable", "web_op_bridge_unavailable", "control_unavailable"].includes(value)) return t("promoRedeemUnavailable");
+    return t("promoRedeemUnavailable");
+  }
+
+  function promoRedeemSuccessText(result) {
+    if (!result) return t("promoRedeemSuccess");
+    const amount = Number(result.amount || 0).toLocaleString(language === "ru" ? "ru-RU" : "en-US");
+    const reward = result.kind === "lvl" ? `+${amount} LVL` : `+${amount} ${t("promoTokens")}`;
+    return `${t("promoRedeemSuccess")}: ${reward}`;
+  }
+
+  async function refreshProfileAfterPromo() {
+    if (!authState.sessionToken) return;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    try {
+      const data = await authRequest("/me", { method: "GET" });
+      storeAuth(data);
+    } catch {}
+  }
+
+  async function redeemPromoFromProfile(rawCode) {
+    if (promoRedeemState.busy) return;
+    const code = String(rawCode || "").trim().replace(/\s+/g, "");
+    promoRedeemState.code = code;
+    if (!code || code.length > 64 || !/^[A-Za-z0-9_-]+$/.test(code)) {
+      promoRedeemState.message = t("promoRedeemInvalid");
+      promoRedeemState.tone = "error";
+      renderAuth();
+      return;
+    }
+
+    promoRedeemState.busy = true;
+    promoRedeemState.message = t("promoRedeemSending");
+    promoRedeemState.tone = "loading";
+    renderAuth();
+    try {
+      const created = await controlRequest("/command", { method: "POST", body: { action: "promo_redeem", code } });
+      const outcome = await waitControlResult(created.commandId || "");
+      if (outcome.timeout) {
+        promoRedeemState.message = t("promoRedeemTimeout");
+        promoRedeemState.tone = "error";
+        return;
+      }
+      if (!outcome.ok) {
+        promoRedeemState.message = promoRedeemFailureText(outcome.data?.result || "promo_failed");
+        promoRedeemState.tone = "error";
+        return;
+      }
+
+      const parsed = parsePromoRedeemResult(outcome.data?.result);
+      if (!parsed) {
+        promoRedeemState.message = t("promoRedeemUnavailable");
+        promoRedeemState.tone = "error";
+        return;
+      }
+      if (authState.profile) {
+        authState.profile.level = parsed.level;
+        authState.profile.tokens = parsed.tokens;
+      }
+      promoRedeemState.code = "";
+      promoRedeemState.message = promoRedeemSuccessText(parsed);
+      promoRedeemState.tone = "success";
+      toast(promoRedeemState.message);
+      void refreshProfileAfterPromo();
+    } catch (error) {
+      if (["unauthorized", "invalid_session"].includes(String(error?.message || ""))) {
+        clearAuth();
+        setLogin(true);
+        return;
+      }
+      promoRedeemState.message = promoRedeemFailureText(error?.message || "promo_failed");
+      promoRedeemState.tone = "error";
+    } finally {
+      promoRedeemState.busy = false;
+      renderAuth();
+    }
+  }
+
+  function createPromoRedeemCenter() {
+    const section = document.createElement("section");
+    section.className = "profile-promo-redeem";
+
+    const header = document.createElement("header");
+    const copy = document.createElement("div");
+    const eyebrow = document.createElement("small");
+    eyebrow.textContent = t("seasonPromosEyebrow");
+    const title = document.createElement("strong");
+    title.textContent = t("promoRedeemTitle");
+    const lead = document.createElement("p");
+    lead.textContent = t("promoRedeemLead");
+    copy.append(eyebrow, title, lead);
+    const badge = document.createElement("span");
+    badge.className = "profile-promo-redeem__badge";
+    badge.textContent = "%";
+    header.append(copy, badge);
+
+    const form = document.createElement("form");
+    form.className = "profile-promo-redeem__form";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.name = "promo";
+    input.maxLength = 64;
+    input.autocomplete = "off";
+    input.autocapitalize = "none";
+    input.spellcheck = false;
+    input.placeholder = t("promoRedeemPlaceholder");
+    input.value = promoRedeemState.code;
+    input.disabled = promoRedeemState.busy;
+    input.addEventListener("input", () => { promoRedeemState.code = input.value; });
+
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.className = "primary-button";
+    button.disabled = promoRedeemState.busy;
+    button.textContent = promoRedeemState.busy ? t("promoRedeemSending") : t("promoRedeemButton");
+    form.append(input, button);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void redeemPromoFromProfile(input.value);
+    });
+
+    const status = document.createElement("small");
+    status.className = `profile-promo-redeem__status${promoRedeemState.tone ? ` is-${promoRedeemState.tone}` : ""}`;
+    status.textContent = promoRedeemState.message || t("promoRedeemHint");
+    section.append(header, form, status);
+    return section;
+  }
+
   function createFullProfile() {
     const profile = authState.profile;
     const account = authState.account;
@@ -2655,7 +2831,7 @@
     logout.addEventListener("click", logoutAccount);
     footer.append(meta, logout);
 
-    card.append(hero, createAvatarPicker(profile.avatarId), stats, createSecurityCenter(), footer);
+    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityCenter(), footer);
     return card;
   }
 
