@@ -296,6 +296,7 @@
       matches: "MATCHES",
       wins: "WINS",
       tokens: "TOKENS",
+      richestPlayers: "RICHEST PLAYERS",
       myTokens: "MY TOKENS",
       balanceLabel: "BALANCE",
       tokenUnitSingle: "Token",
@@ -742,6 +743,7 @@
       matches: "МАТЧИ",
       wins: "ПОБЕДЫ",
       tokens: "ТОКЕНЫ",
+      richestPlayers: "ТОП БОГАЧЕЙ",
       myTokens: "МОИ ТОКЕНЫ",
       balanceLabel: "BALANCE",
       tokenUnitSingle: "Token",
@@ -1584,6 +1586,7 @@
       matches: integer(profile.matches, 0, 0, 2147483647),
       wins: integer(profile.wins, 0, 0, 2147483647),
       winRate: integer(profile.winRate, 0, 0, 100),
+      tokens: integer(profile.tokens, 0, 0, 2147483647),
       online: profile.online === true,
       avatarId: normalizeAvatarId(profile.avatarId),
       updatedAt: Number(profile.updatedAt || 0)
@@ -1594,7 +1597,20 @@
     if (sort === "kills") return { label: t("kills"), value: formatCompactNumber(profile.kills) };
     if (sort === "wins") return { label: t("wins"), value: formatCompactNumber(profile.wins) };
     if (sort === "time") return { label: t("gameTime"), value: formatGameTime(profile.timeSec) };
+    if (sort === "tokens") return { label: t("tokens"), value: formatCompactNumber(profile.tokens) };
     return { label: t("level"), value: `LVL ${profile.level}` };
+  }
+
+  function keepActiveLeaderboardTabVisible() {
+    const activeButton = $('[data-rank-sort].is-active');
+    const tabs = activeButton?.closest(".leaderboard-tabs");
+    if (!activeButton || !tabs) return;
+    const tabsRect = tabs.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+    const edge = 6;
+    if (buttonRect.left >= tabsRect.left + edge && buttonRect.right <= tabsRect.right - edge) return;
+    const left = tabs.scrollLeft + buttonRect.left - tabsRect.left - (tabs.clientWidth - buttonRect.width) / 2;
+    tabs.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
   }
 
   function renderLeaderboardState(title, text = "", tone = "") {
@@ -1686,7 +1702,12 @@
   function renderLeaderboard() {
     const body = $("#leaderboardBody");
     if (!body) return;
-    $$('[data-rank-sort]').forEach((button) => button.classList.toggle("is-active", button.dataset.rankSort === leaderboardState.sort));
+    $$('[data-rank-sort]').forEach((button) => {
+      const active = button.dataset.rankSort === leaderboardState.sort;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+    requestAnimationFrame(keepActiveLeaderboardTabVisible);
     const updated = $("#leaderboardUpdated");
     if (updated) updated.textContent = leaderboardState.loadedAt ? `${t("rankUpdated")}: ${formatAge(leaderboardState.loadedAt)}` : "—";
 
@@ -1713,7 +1734,7 @@
       return;
     }
 
-    leaderboardState.sort = ["level", "kills", "wins", "time"].includes(sort) ? sort : "level";
+    leaderboardState.sort = ["level", "kills", "wins", "time", "tokens"].includes(sort) ? sort : "level";
     leaderboardState.loading = true;
     renderLeaderboard();
     try {
