@@ -7,11 +7,11 @@
   <meta name="description" content="KONTRA // SURVIVAL — live server dashboard and player portal.">
   <title>KONTRA // SURVIVAL</title>
   <link rel="icon" href="assets/kontra-zombie-logo.webp" type="image/webp">
-  <link rel="stylesheet" href="styles.css?v=46">
-  <script src="config.js?v=31"></script>
-  <script src="app.js?v=51" defer></script>
+  <link rel="stylesheet" href="styles.css?v=notifications-admin-v1">
+  <script src="config.js?v=notifications-admin-v1"></script>
+  <script src="app.js?v=notifications-admin-v1" defer></script>
 </head>
-<body data-build="v39-notifications">
+<body data-build="v40-notifications-admin">
   <div class="ambient ambient--one" aria-hidden="true"></div>
   <div class="ambient ambient--two" aria-hidden="true"></div>
 
@@ -189,6 +189,11 @@
             <span class="pinball-tile__eyebrow" data-i18n="pinballDailyBadge">3 FREE ATTEMPTS DAILY</span>
             <strong data-i18n="retroPinball">KONTRA PINBALL</strong>
             <small data-i18n="retroPinballText">Hit token targets and find the victory hole</small>
+          </button>
+          <button type="button" class="admin-tile announcement-tile" data-control-panel="announcements" data-admin-only hidden>
+            <span aria-hidden="true">✦</span>
+            <strong data-i18n="announcementCenter">ANNOUNCEMENTS</strong>
+            <small data-i18n="announcementTileText">Send a server announcement to the notification bell</small>
           </button>
         </div>
       </section>

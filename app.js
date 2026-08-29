@@ -76,6 +76,29 @@
       notificationTypeUpdate: "UPDATE",
       notificationTypeAccount: "ACCOUNT",
       notificationTypeSystem: "SYSTEM",
+      announcementCenter: "ANNOUNCEMENTS",
+      announcementTileText: "Send a server announcement to the notification bell",
+      announcementPanelLead: "Publish a global announcement to every player and guest.",
+      announcementTypeLabel: "TYPE",
+      announcementTitleRu: "TITLE · RU",
+      announcementBodyRu: "MESSAGE · RU",
+      announcementTitleEn: "TITLE · EN (OPTIONAL)",
+      announcementBodyEn: "MESSAGE · EN (OPTIONAL)",
+      announcementExpiresLabel: "SHOW FOR",
+      announcementNever: "NO EXPIRATION",
+      announcement1Day: "1 DAY",
+      announcement3Days: "3 DAYS",
+      announcement7Days: "7 DAYS",
+      announcement30Days: "30 DAYS",
+      announcementSend: "PUBLISH ANNOUNCEMENT",
+      announcementSending: "PUBLISHING...",
+      announcementSent: "ANNOUNCEMENT PUBLISHED",
+      announcementFailed: "COULD NOT PUBLISH ANNOUNCEMENT",
+      announcementRequired: "ENTER A TITLE AND MESSAGE",
+      announcementTypeSystem: "ANNOUNCEMENT",
+      announcementTypeUpdate: "UPDATE",
+      announcementTypeSeason: "SEASON",
+      announcementTypePromo: "PROMO CODE",
       liveScoreboard: "LIVE SCOREBOARD",
       controlCenter: "CONTROL CENTER",
       retroPinball: "KONTRA PINBALL",
@@ -602,6 +625,29 @@
       notificationTypeUpdate: "ОБНОВЛЕНИЕ",
       notificationTypeAccount: "АККАУНТ",
       notificationTypeSystem: "СИСТЕМА",
+      announcementCenter: "ОБЪЯВЛЕНИЯ",
+      announcementTileText: "Отправить объявление всем в колокольчик",
+      announcementPanelLead: "Опубликуй общее объявление для всех игроков и гостей сайта.",
+      announcementTypeLabel: "ТИП",
+      announcementTitleRu: "ЗАГОЛОВОК · RU",
+      announcementBodyRu: "ТЕКСТ · RU",
+      announcementTitleEn: "ЗАГОЛОВОК · EN (НЕОБЯЗАТЕЛЬНО)",
+      announcementBodyEn: "ТЕКСТ · EN (НЕОБЯЗАТЕЛЬНО)",
+      announcementExpiresLabel: "ПОКАЗЫВАТЬ",
+      announcementNever: "БЕЗ СРОКА",
+      announcement1Day: "1 ДЕНЬ",
+      announcement3Days: "3 ДНЯ",
+      announcement7Days: "7 ДНЕЙ",
+      announcement30Days: "30 ДНЕЙ",
+      announcementSend: "ОПУБЛИКОВАТЬ ОБЪЯВЛЕНИЕ",
+      announcementSending: "ПУБЛИКУЮ...",
+      announcementSent: "ОБЪЯВЛЕНИЕ ОПУБЛИКОВАНО",
+      announcementFailed: "НЕ УДАЛОСЬ ОПУБЛИКОВАТЬ ОБЪЯВЛЕНИЕ",
+      announcementRequired: "ВВЕДИ ЗАГОЛОВОК И ТЕКСТ",
+      announcementTypeSystem: "ОБЪЯВЛЕНИЕ",
+      announcementTypeUpdate: "ОБНОВЛЕНИЕ",
+      announcementTypeSeason: "СЕЗОН",
+      announcementTypePromo: "ПРОМОКОД",
       liveScoreboard: "ТАБЛИЦА ИГРОКОВ",
       controlCenter: "ЦЕНТР УПРАВЛЕНИЯ",
       retroPinball: "KONTRA ПИНБОЛ",
@@ -3268,7 +3314,13 @@
     return card;
   }
 
+  function syncAdminOnlyControls() {
+    const isAdmin = String(authState.account?.role || authState.profile?.role || "").toUpperCase() === "ADMIN";
+    $$("[data-admin-only]").forEach((node) => { node.hidden = !isAdmin; });
+  }
+
   function renderAuth() {
+    syncAdminOnlyControls();
     const home = $("#homeProfileBody");
     const page = $("#profilePageBody");
     if (home) home.replaceChildren(authState.account && authState.profile ? createCompactProfile() : createLockedProfile(true));
@@ -4464,7 +4516,8 @@
   const CONTROL_PANELS = {
     lvl: { title: "LVL MOD", persistent: true, module: "lvl" },
     menu: { title: "GAME MENU", custom: "game", lead: "gameMenuWebLead" },
-    admin: { title: "ADMIN CONTROL", custom: "admin", lead: "adminPanelLead", admin: true }
+    admin: { title: "ADMIN CONTROL", custom: "admin", lead: "adminPanelLead", admin: true },
+    announcements: { title: "ANNOUNCEMENTS", custom: "announcements", lead: "announcementPanelLead", admin: true }
   };
 
   const GAME_MENU_ACTIONS = [
@@ -4913,6 +4966,131 @@
     return { label, select };
   }
 
+  async function notificationAdminRequest(body) {
+    const endpoint = notificationsEndpoint();
+    if (!endpoint || !authState.sessionToken) throw new Error("notifications_unavailable");
+    const response = await fetch(`${endpoint}/admin/publish`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authState.sessionToken}`
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.ok === false) {
+      const error = new Error(String(data?.error || `HTTP_${response.status}`));
+      error.data = data;
+      throw error;
+    }
+    return data;
+  }
+
+  function appendAnnouncementTextField(container, labelText, multiline = false, maxLength = 120) {
+    const label = document.createElement("label");
+    label.className = "settings-field announcement-field";
+    const title = document.createElement("span");
+    title.textContent = labelText;
+    const field = multiline ? document.createElement("textarea") : document.createElement("input");
+    if (!multiline) field.type = "text";
+    field.maxLength = maxLength;
+    field.autocomplete = "off";
+    if (multiline) field.rows = 4;
+    label.append(title, field);
+    container.appendChild(label);
+    return field;
+  }
+
+  function renderAnnouncementPanel() {
+    const actions = $("#controlActions");
+    actions.replaceChildren();
+    const form = document.createElement("div");
+    form.className = "settings-form announcement-form";
+
+    const typeField = appendFormSelect(form, t("announcementTypeLabel"), [
+      ["system", t("announcementTypeSystem")],
+      ["update", t("announcementTypeUpdate")],
+      ["season", t("announcementTypeSeason")],
+      ["promo", t("announcementTypePromo")]
+    ], "system");
+
+    const titleRu = appendAnnouncementTextField(form, t("announcementTitleRu"), false, 120);
+    const bodyRu = appendAnnouncementTextField(form, t("announcementBodyRu"), true, 600);
+    const titleEn = appendAnnouncementTextField(form, t("announcementTitleEn"), false, 120);
+    const bodyEn = appendAnnouncementTextField(form, t("announcementBodyEn"), true, 600);
+
+    const expiresField = appendFormSelect(form, t("announcementExpiresLabel"), [
+      ["0", t("announcementNever")],
+      ["1", t("announcement1Day")],
+      ["3", t("announcement3Days")],
+      ["7", t("announcement7Days")],
+      ["30", t("announcement30Days")]
+    ], "7");
+
+    const submit = document.createElement("button");
+    submit.type = "button";
+    submit.className = "primary-button settings-save";
+    submit.textContent = t("announcementSend");
+    form.appendChild(submit);
+    actions.appendChild(form);
+
+    submit.addEventListener("click", async () => {
+      const ruTitle = String(titleRu.value || "").trim();
+      const ruBody = String(bodyRu.value || "").trim();
+      if (!ruTitle || !ruBody) {
+        setControlStatus(t("announcementRequired"), "error");
+        return;
+      }
+      if (controlState.busy) return;
+      setControlBusy(true);
+      submit.textContent = t("announcementSending");
+      setControlStatus(t("announcementSending"));
+      try {
+        const days = Number(expiresField.select.value || 0);
+        const expiresAt = days > 0 ? Date.now() + days * 24 * 60 * 60 * 1000 : 0;
+        await notificationAdminRequest({
+          scope: "global",
+          type: typeField.select.value || "system",
+          titleRu: ruTitle,
+          bodyRu: ruBody,
+          titleEn: String(titleEn.value || "").trim(),
+          bodyEn: String(bodyEn.value || "").trim(),
+          expiresAt,
+          meta: {
+            source: "web_admin",
+            author: authState.account?.username || authState.profile?.name || "ADMIN"
+          }
+        });
+        titleRu.value = "";
+        bodyRu.value = "";
+        titleEn.value = "";
+        bodyEn.value = "";
+        notificationState.loadedAt = 0;
+        await fetchNotifications(true);
+        setControlStatus(t("announcementSent"), "success");
+        toast(t("announcementSent"));
+      } catch (error) {
+        if (["invalid_session", "unauthorized"].includes(String(error?.message || ""))) {
+          clearAuth();
+          setControlModal(false);
+          setLogin(true);
+          toast(t("controlLoginRequired"));
+        } else if (String(error?.message || "") === "admin_required") {
+          setControlStatus(t("adminRequired"), "error");
+        } else {
+          setControlStatus(t("announcementFailed"), "error");
+        }
+      } finally {
+        setControlBusy(false);
+        submit.textContent = t("announcementSend");
+      }
+    });
+
+    setControlStatus(t("announcementPanelLead"));
+  }
+
   function renderGameMenuPanel() {
     const actions = $("#controlActions");
     actions.replaceChildren();
@@ -5065,6 +5243,10 @@
     }
     if (panel.custom === "admin") {
       renderAdminPanel();
+      return;
+    }
+    if (panel.custom === "announcements") {
+      renderAnnouncementPanel();
       return;
     }
     setControlStatus(t("controlWaiting"));

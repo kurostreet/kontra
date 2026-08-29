@@ -5687,3 +5687,40 @@ body.theme-day .notification-center__foot { color: #667388; }
   .notification-card { grid-template-columns: 42px minmax(0,1fr) 8px; gap: 10px; padding-inline: 10px; }
   .notification-card__icon { width: 40px; height: 40px; border-radius: 12px; }
 }
+
+
+/* v2 notifications admin composer */
+.control-grid .announcement-tile {
+  border-color: rgba(255, 80, 92, .34);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255,70,85,.13), transparent 34%),
+    linear-gradient(145deg, rgba(24,16,20,.96), rgba(8,11,16,.96));
+}
+.control-grid .announcement-tile > span,
+.control-grid .announcement-tile > strong { color: #ff5a67; }
+.control-grid .announcement-tile::after { color: rgba(255,90,103,.75); }
+.settings-field input,
+.settings-field textarea {
+  width: 100%;
+  border: 1px solid rgba(168,255,62,.22);
+  border-radius: 16px;
+  background: rgba(4,10,7,.72);
+  color: var(--text);
+  padding: 14px 16px;
+  font: inherit;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.settings-field input { min-height: 52px; }
+.settings-field textarea { min-height: 112px; line-height: 1.45; }
+.settings-field input:focus,
+.settings-field textarea:focus {
+  border-color: rgba(168,255,62,.7);
+  box-shadow: 0 0 0 3px rgba(168,255,62,.08);
+}
+body.theme-day .settings-field input,
+body.theme-day .settings-field textarea {
+  background: rgba(255,255,255,.8);
+  color: #122029;
+}
