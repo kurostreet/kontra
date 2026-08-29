@@ -8370,11 +8370,78 @@
       const actions = document.createElement("div"); actions.className = "lvl-message__actions";
       if (message?.read === false && message?.id) actions.appendChild(socialButton(lvlLocalized("ПРОЧИТАНО", "MARK READ"), "social_message_read", { messageId: message.id }, "muted"));
       actions.appendChild(socialButton(lvlLocalized("ОТВЕТИТЬ", "REPLY"), "compose_message", { targetName: message?.fromNick || "" }));
+      if (message?.id) actions.appendChild(socialButton(lvlLocalized("ПОЖАЛОВАТЬСЯ", "REPORT"), "social_report", { messageId: message.id }, "danger"));
       actions.appendChild(socialButton(lvlLocalized("БЛОКИРОВАТЬ", "BLOCK"), "social_block", { targetName: message?.fromNick || "" }, "danger"));
       if (message?.id) actions.appendChild(socialButton(lvlLocalized("УДАЛИТЬ", "DELETE"), "social_message_delete", { messageId: message.id }, "danger"));
       item.append(head, p, actions); messages.appendChild(item);
     }
     section.append(titleRow, messages); root.appendChild(section);
+  }
+
+  async function runLvlSocialReport(messageId) {
+    if (lvlHubState.socialAction.busy) return false;
+    if (!authState.sessionToken) { setLogin(true); return false; }
+
+    const reasonInput = window.prompt(
+      lvlLocalized(
+        "ПРИЧИНА ЖАЛОБЫ:\n1 — Спам\n2 — Оскорбления / травля\n3 — Ненависть\n4 — Сексуальный контент\n5 — Насилие / угрозы\n6 — Другое\n\nВведите номер 1–6:",
+        "REPORT REASON:\n1 — Spam\n2 — Harassment / bullying\n3 — Hate\n4 — Sexual content\n5 — Violence / threats\n6 — Other\n\nEnter a number from 1–6:"
+      ),
+      "1"
+    );
+    if (reasonInput === null) return false;
+
+    const reasonMap = {
+      "1": "spam",
+      "2": "harassment",
+      "3": "hate",
+      "4": "sexual",
+      "5": "violence",
+      "6": "other"
+    };
+    const reason = reasonMap[String(reasonInput || "").trim()];
+    if (!reason) {
+      toast(lvlLocalized("Выберите причину от 1 до 6", "Choose a reason from 1 to 6"));
+      return false;
+    }
+
+    if (!window.confirm(lvlLocalized(
+      "Отправить жалобу на это сообщение? Копия сообщения будет сохранена для модерации.",
+      "Report this message? A copy of the message will be retained for moderation."
+    ))) return false;
+
+    lvlHubState.socialAction = { busy: true, key: "social_report", error: "", notice: "" };
+    renderLvlFriends();
+
+    try {
+      const result = await controlRequest("/social/report", {
+        method: "POST",
+        body: { messageId: String(messageId || ""), reason }
+      });
+      const notice = result?.duplicate
+        ? lvlLocalized("Жалоба на это сообщение уже отправлена ✓", "This message has already been reported ✓")
+        : lvlLocalized("Жалоба отправлена ✓", "Report submitted ✓");
+      lvlHubState.socialAction.notice = notice;
+      toast(notice);
+      return true;
+    } catch (error) {
+      const code = String(error?.message || "social_report_failed");
+      const map = {
+        invalid_message: lvlLocalized("Некорректное сообщение", "Invalid message"),
+        message_not_found: lvlLocalized("Сообщение больше не найдено. Обновите входящие.", "Message is no longer available. Refresh your inbox."),
+        invalid_reason: lvlLocalized("Некорректная причина жалобы", "Invalid report reason"),
+        report_rate_limited: lvlLocalized("Слишком много жалоб. Попробуйте позже.", "Too many reports. Try again later."),
+        invalid_session: lvlLocalized("Сессия истекла. Войдите снова.", "Session expired. Sign in again."),
+        social_report_failed: lvlLocalized("Не удалось отправить жалобу", "Could not submit report")
+      };
+      const message = map[code] || lvlLocalized("Не удалось отправить жалобу", "Could not submit report");
+      lvlHubState.socialAction.error = message;
+      toast(message);
+      return false;
+    } finally {
+      lvlHubState.socialAction.busy = false;
+      renderLvlFriends();
+    }
   }
 
   async function runLvlSocialAction(action, payload = {}) {
@@ -8724,6 +8791,12 @@
       if (action === "compose_tokens") {
         const select = $("#lvlTokenTarget"); if (select) select.value = String(button.dataset.targetName || "");
         $("#lvlTokenTarget")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (action === "social_report") {
+        const messageId = String(button.dataset.messageId || "").trim();
+        if (!messageId) return;
+        await runLvlSocialReport(messageId);
         return;
       }
       if (action === "social_inbox_clear" && !window.confirm(lvlLocalized("Удалить все входящие сообщения?", "Delete all inbox messages?"))) return;
