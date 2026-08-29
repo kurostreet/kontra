@@ -1,4 +1,4 @@
-/* KONTRA SITE v42 — Hall of Fame + season history */
+/* KONTRA SITE v43 — Hall of Fame + live season promos */
 (() => {
   "use strict";
   // KONTRA site app v16 — persistent pinball rewards with a protected launch lane.
@@ -32,6 +32,13 @@
       serverOfflinePlayersText: "The live player list will return when the server sender reconnects.",
       fullScoreboard: "FULL SCOREBOARD",
       yourStats: "YOUR STATISTICS",
+      seasonPromosEyebrow: "SEASON BONUS",
+      seasonPromosTitle: "NEW SEASON PROMO CODES",
+      seasonPromosLead: "Enter the code in the in-game chat and collect the reward.",
+      promoTokens: "TOKENS",
+      promoCopy: "COPY",
+      promoCopied: "PROMO CODE COPIED",
+      promoSynced: "SYNCED WITH SERVER",
       profileLocked: "PROFILE IS LOCKED",
       profileLockedText: "Sign in through the game or with your username and password.",
       signIn: "SIGN IN",
@@ -497,6 +504,13 @@
       serverOfflinePlayersText: "Живой список появится после подключения серверного sender.",
       fullScoreboard: "ПОЛНАЯ ТАБЛИЦА",
       yourStats: "ВАША СТАТИСТИКА",
+      seasonPromosEyebrow: "БОНУС СЕЗОНА",
+      seasonPromosTitle: "ПРОМОКОДЫ НОВОГО СЕЗОНА",
+      seasonPromosLead: "Введи промокод в игровой чат и забери награду.",
+      promoTokens: "ТОКЕНОВ",
+      promoCopy: "КОПИРОВАТЬ",
+      promoCopied: "ПРОМОКОД СКОПИРОВАН",
+      promoSynced: "СИНХРОНИЗИРОВАНО С СЕРВЕРОМ",
       profileLocked: "ПРОФИЛЬ ЗАКРЫТ",
       profileLockedText: "Войдите через игру или по логину и паролю.",
       signIn: "ВОЙТИ",
@@ -1381,6 +1395,10 @@
     return String(config.hallOfFameEndpoint || "/api/hall-of-fame").trim();
   }
 
+  function promosEndpoint() {
+    return String(config.promosEndpoint || "/api/promos").trim();
+  }
+
   function controlBase() {
     return String(config.controlBaseEndpoint || "").trim().replace(/\/+$/, "");
   }
@@ -2136,6 +2154,7 @@
     seasonArchiveState.seasonsLoading = true;
     seasonArchiveState.seasonsError = "";
     renderSeasonHistory();
+    renderSeasonPromos();
     try {
       const separator = endpoint.includes("?") ? "&" : "?";
       const response = await fetch(`${endpoint}${separator}limit=50&_=${Date.now()}`, { cache: "no-store", headers: { Accept: "application/json" } });
@@ -2813,6 +2832,77 @@
 
   function toggleColorTheme() {
     applyColorTheme(colorTheme === "day" ? "night" : "day", true);
+  }
+
+  const promoSeasonState = { promos: [], updatedAt: 0, loading: false };
+
+  function normalizeSeasonPromo(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const word = String(raw.word || "").trim().slice(0, 64);
+    const kind = String(raw.kind || "tok").toLowerCase() === "lvl" ? "lvl" : "tok";
+    const amount = Math.max(0, Math.floor(Number(raw.amount) || 0));
+    if (!word || amount <= 0) return null;
+    return { word, kind, amount };
+  }
+
+  function escapePromoText(value) {
+    return String(value || "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[ch] || ch));
+  }
+
+  function promoRewardLabel(promo) {
+    const amount = Number(promo?.amount || 0).toLocaleString(language === "ru" ? "ru-RU" : "en-US");
+    return promo?.kind === "lvl" ? `+${amount} LVL` : `+${amount} ${t("promoTokens")}`;
+  }
+
+  function renderSeasonPromos() {
+    const panel = $("#promoSeasonPanel");
+    const grid = $("#promoSeasonGrid");
+    if (!panel || !grid) return;
+    const promos = Array.isArray(promoSeasonState.promos) ? promoSeasonState.promos : [];
+    panel.hidden = promos.length === 0;
+    grid.replaceChildren();
+    if (!promos.length) return;
+    promos.forEach((promo, index) => {
+      const card = document.createElement("article");
+      card.className = `promo-season-card ${promo.kind === "lvl" ? "is-lvl" : "is-tokens"}`;
+      card.style.setProperty("--promo-delay", `${Math.min(index, 7) * 45}ms`);
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "promo-season-card__copy";
+      copy.setAttribute("aria-label", `${t("promoCopy")}: ${promo.word}`);
+      copy.innerHTML = `<span>${escapePromoText(promo.word)}</span><small>${t("promoCopy")}</small>`;
+      copy.addEventListener("click", async () => {
+        const copied = await copyText(promo.word);
+        toast(copied ? `${t("promoCopied")}: ${promo.word}` : t("copyFailed"));
+      });
+      const reward = document.createElement("div");
+      reward.className = "promo-season-card__reward";
+      reward.innerHTML = `<span>${promo.kind === "lvl" ? "LVL" : "TK"}</span><strong>${promoRewardLabel(promo)}</strong>`;
+      card.append(copy, reward);
+      grid.append(card);
+    });
+    const updated = $("#promoUpdatedAt");
+    if (updated) updated.textContent = promoSeasonState.updatedAt ? formatAge(promoSeasonState.updatedAt) : "—";
+  }
+
+  async function fetchSeasonPromos() {
+    if (promoSeasonState.loading) return;
+    const endpoint = promosEndpoint();
+    if (!endpoint) return;
+    promoSeasonState.loading = true;
+    try {
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const response = await fetch(`${endpoint}${separator}_=${Date.now()}`, { cache: "no-store", headers: { Accept: "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(String(data.error || `HTTP_${response.status}`));
+      promoSeasonState.promos = (Array.isArray(data.promos) ? data.promos : []).map(normalizeSeasonPromo).filter(Boolean);
+      promoSeasonState.updatedAt = Number(data.updatedAt || 0);
+      renderSeasonPromos();
+    } catch (error) {
+      console.warn("[KONTRA] promo list unavailable", error);
+    } finally {
+      promoSeasonState.loading = false;
+    }
   }
 
   function applyLanguage(next) {
@@ -7586,5 +7676,7 @@
   window.addEventListener("pagehide", releaseStatusLeader);
   renderCachedStatus();
   void runStatusPoll();
+  void fetchSeasonPromos();
+  setInterval(() => void fetchSeasonPromos(), 60000);
   initializeAuth();
 })();
