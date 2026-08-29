@@ -8242,11 +8242,14 @@
       const msg = socialButton(lvlLocalized("НАПИСАТЬ", "MESSAGE"), "compose_message", { targetName: name });
       const tok = socialButton(lvlLocalized("ТОКЕНЫ", "TOKENS"), "compose_tokens", { targetName: name }, "gold");
       const remove = socialButton(lvlLocalized("УДАЛИТЬ", "REMOVE"), "social_friend_remove", { targetName: name }, "danger");
-      actions.append(msg, tok, remove);
+      const block = socialButton(lvlLocalized("БЛОКИРОВАТЬ", "BLOCK"), "social_block", { targetName: name }, "danger");
+      actions.append(msg, tok, remove, block);
     } else if (kind === "follower") {
       actions.append(socialButton(lvlLocalized("ДОБАВИТЬ", "ADD"), "social_friend_accept", { targetName: name }, "ok"));
     } else if (kind === "subscription") {
       actions.append(socialButton(lvlLocalized("ОТМЕНИТЬ", "CANCEL"), "social_subscription_cancel", { targetName: name }, "danger"));
+    } else if (kind === "blocked") {
+      actions.append(socialButton(lvlLocalized("РАЗБЛОКИРОВАТЬ", "UNBLOCK"), "social_unblock", { targetName: name }, "muted"));
     }
     card.append(actions);
     return card;
@@ -8269,7 +8272,7 @@
 
     const stats = document.createElement("div");
     stats.className = "lvl-social-stats";
-    const counters = [["friends", t("friendsList")], ["requests", t("friendRequests")], ["followers", t("followers")], ["subscriptions", t("subscriptions")], ["unread", t("unread")]];
+    const counters = [["friends", t("friendsList")], ["requests", t("friendRequests")], ["followers", t("followers")], ["subscriptions", t("subscriptions")], ["blocked", lvlLocalized("БЛОК", "BLOCKED")], ["unread", t("unread")]];
     for (const [key, label] of counters) {
       const box = document.createElement("div");
       const b = document.createElement("b"); b.textContent = String(social?.counts?.[key] || 0);
@@ -8335,7 +8338,8 @@
       ["requests", lvlLocalized("ЗАЯВКИ", "REQUESTS"), "request"],
       ["friends", lvlLocalized("ДРУЗЬЯ", "FRIENDS"), "friend"],
       ["followers", lvlLocalized("ПОДПИСЧИКИ", "FOLLOWERS"), "follower"],
-      ["subscriptions", lvlLocalized("МОИ ПОДПИСКИ", "MY SUBSCRIPTIONS"), "subscription"]
+      ["subscriptions", lvlLocalized("МОИ ПОДПИСКИ", "MY SUBSCRIPTIONS"), "subscription"],
+      ["blocked", lvlLocalized("ЗАБЛОКИРОВАННЫЕ", "BLOCKED USERS"), "blocked"]
     ];
     for (const [key, label, kind] of groups) {
       const values = Array.isArray(social?.[key]) ? social[key] : [];
@@ -8366,6 +8370,7 @@
       const actions = document.createElement("div"); actions.className = "lvl-message__actions";
       if (message?.read === false && message?.id) actions.appendChild(socialButton(lvlLocalized("ПРОЧИТАНО", "MARK READ"), "social_message_read", { messageId: message.id }, "muted"));
       actions.appendChild(socialButton(lvlLocalized("ОТВЕТИТЬ", "REPLY"), "compose_message", { targetName: message?.fromNick || "" }));
+      actions.appendChild(socialButton(lvlLocalized("БЛОКИРОВАТЬ", "BLOCK"), "social_block", { targetName: message?.fromNick || "" }, "danger"));
       if (message?.id) actions.appendChild(socialButton(lvlLocalized("УДАЛИТЬ", "DELETE"), "social_message_delete", { messageId: message.id }, "danger"));
       item.append(head, p, actions); messages.appendChild(item);
     }
@@ -8397,6 +8402,8 @@
         social_friend_dismiss: lvlLocalized("Заявка перемещена в подписчики ✓", "Request moved to followers ✓"),
         social_friend_remove: lvlLocalized("Друг удалён ✓", "Friend removed ✓"),
         social_subscription_cancel: lvlLocalized("Подписка отменена ✓", "Subscription cancelled ✓"),
+        social_block: lvlLocalized("Игрок заблокирован ✓", "Player blocked ✓"),
+        social_unblock: lvlLocalized("Игрок разблокирован ✓", "Player unblocked ✓"),
         social_message_send: lvlLocalized("Сообщение отправлено ✓ Офлайн-друг увидит его позже.", "Message sent ✓ An offline friend will see it later."),
         social_message_read: lvlLocalized("Сообщение отмечено прочитанным ✓", "Message marked as read ✓"),
         social_message_delete: lvlLocalized("Сообщение удалено ✓", "Message deleted ✓"),
@@ -8418,6 +8425,9 @@
         already_requested: lvlLocalized("Заявка уже отправлена", "Request already sent"),
         not_friends: lvlLocalized("Игрок больше не в друзьях", "Player is not a friend"),
         request_not_found: lvlLocalized("Заявка уже недоступна", "Request is no longer available"),
+        target_blocked: lvlLocalized("Вы заблокировали этого игрока", "You blocked this player"),
+        blocked_by_target: lvlLocalized("Этот игрок заблокировал вас", "This player blocked you"),
+        not_blocked: lvlLocalized("Игрок уже разблокирован", "Player is already unblocked"),
         empty_message: lvlLocalized("Введите сообщение", "Enter a message"),
         message_cooldown: lvlLocalized("Слишком часто. Подождите несколько секунд", "Too fast. Wait a few seconds"),
         sender_inbox_limit: lvlLocalized("У друга уже слишком много ваших сообщений", "Too many of your messages are waiting"),
@@ -8717,6 +8727,12 @@
         return;
       }
       if (action === "social_inbox_clear" && !window.confirm(lvlLocalized("Удалить все входящие сообщения?", "Delete all inbox messages?"))) return;
+      if (action === "social_block") {
+        if (!window.confirm(lvlLocalized("Заблокировать игрока? Дружба будет удалена, а новые сообщения и заявки от него будут запрещены.", "Block this player? Friendship will be removed and new messages and requests from them will be blocked."))) return;
+      }
+      if (action === "social_unblock") {
+        if (!window.confirm(lvlLocalized("Разблокировать игрока?", "Unblock this player?"))) return;
+      }
       if (["social_friend_remove", "social_subscription_cancel", "social_message_delete"].includes(action)) {
         if (!window.confirm(lvlLocalized("Подтвердить действие?", "Confirm action?"))) return;
       }
