@@ -3422,6 +3422,9 @@
     const labels = {
       beta_terms_required: authLocalized("Подтвердите правила Beta Program.", "Accept the Beta Program rules."),
       beta_banned: authLocalized("Доступ к Beta Program заблокирован.", "Beta Program access is blocked."),
+      beta_not_joined: authLocalized("Сначала вступите в Beta Program.", "Join the Beta Program first."),
+      beta_telegram_link_failed: authLocalized("Не удалось создать ссылку Telegram. Попробуйте ещё раз.", "Could not create the Telegram link. Try again."),
+      telegram_start_url_invalid: authLocalized("Worker вернул некорректную ссылку Telegram.", "Worker returned an invalid Telegram link."),
       beta_active_required: authLocalized("Действие доступно только активному тестеру.", "This action requires an active tester."),
       message_required: authLocalized("Введите сообщение.", "Enter a message."),
       message_rate_limited: authLocalized("Следующее сообщение можно отправить через 30 секунд.", "You can send another message in 30 seconds."),
@@ -3510,6 +3513,37 @@
       betaProgramState.messageTone = "success";
       toast(successText);
       await fetchBetaProgram(true);
+    } catch (error) {
+      if (["invalid_session", "unauthorized"].includes(String(error?.message || ""))) {
+        clearAuth();
+        setLogin(true);
+        return;
+      }
+      betaProgramState.error = betaErrorText(error);
+    } finally {
+      betaProgramState.action = "";
+      renderAuth();
+    }
+  }
+
+  async function connectBetaTelegram() {
+    if (betaProgramState.action) return;
+    betaProgramState.action = "telegram";
+    betaProgramState.error = "";
+    betaProgramState.messageNotice = authLocalized("Создаём защищённую ссылку Telegram…", "Creating a secure Telegram link…");
+    betaProgramState.messageTone = "loading";
+    renderAuth();
+    try {
+      const data = await betaRequest("/telegram/link", { method: "POST", body: {} });
+      betaMergeResponse(data);
+      const startUrl = String(data?.startUrl || "").trim();
+      if (!/^https:\/\/t\.me\/[A-Za-z0-9_]+\?start=[A-Za-z0-9_-]+$/i.test(startUrl)) {
+        throw new Error("telegram_start_url_invalid");
+      }
+      betaProgramState.messageNotice = authLocalized("Открываем KONTRA FPS BETA в Telegram…", "Opening KONTRA FPS BETA in Telegram…");
+      betaProgramState.messageTone = "success";
+      toast(betaProgramState.messageNotice);
+      window.location.assign(startUrl);
     } catch (error) {
       if (["invalid_session", "unauthorized"].includes(String(error?.message || ""))) {
         clearAuth();
@@ -3875,15 +3909,34 @@
     steps.className = "beta-program__steps";
     steps.append(
       createBetaStep(1, authLocalized("Вступить", "Join"), authLocalized("Один бесплатный вход; повторное вступление проверяет ADMIN.", "One free entry; rejoining requires ADMIN approval."), ["telegram_pending", "active", "pending_rejoin"].includes(status.status) ? "is-done" : ""),
-      createBetaStep(2, authLocalized("Подтвердить Telegram", "Verify Telegram"), authLocalized("Вступите в группу тестеров. Автоматическая проверка ещё подключается.", "Join the tester group. Automated verification is still being connected."), tester.telegramVerified ? "is-done" : ""),
+      createBetaStep(2, authLocalized("Подтвердить Telegram", "Verify Telegram"), authLocalized("Подключите Telegram через бота. Участие в группе проверяется автоматически.", "Connect Telegram through the bot. Group membership is verified automatically."), tester.telegramVerified ? "is-done" : ""),
       createBetaStep(3, authLocalized("Получить Google Play сборку", "Get the Google Play build"), authLocalized("Официальная closed-testing ссылка появится после публикации набора.", "The official closed-testing link will appear after the track is published."), status.status === "active" ? "is-ready" : "")
     );
     const telegram = document.createElement("a");
     telegram.className = "beta-program__external";
-    telegram.href = String(config.links?.betaTelegram || "https://t.me/+MkoIhBP19_E3NDM6");
-    telegram.target = "_blank";
+    telegram.href = "#";
     telegram.rel = "noopener noreferrer";
-    telegram.textContent = authLocalized("ГРУППА ТЕСТЕРОВ В TELEGRAM ↗", "TESTER GROUP ON TELEGRAM ↗");
+    if (tester.telegramVerified || status.status === "active") {
+      telegram.textContent = authLocalized("TELEGRAM ПОДТВЕРЖДЁН ✓", "TELEGRAM VERIFIED ✓");
+      telegram.setAttribute("aria-disabled", "true");
+      telegram.addEventListener("click", (event) => event.preventDefault());
+    } else if (status.status === "telegram_pending") {
+      telegram.textContent = betaProgramState.action === "telegram"
+        ? authLocalized("ПОДКЛЮЧАЕМ TELEGRAM…", "CONNECTING TELEGRAM…")
+        : authLocalized("ПОДКЛЮЧИТЬ TELEGRAM ↗", "CONNECT TELEGRAM ↗");
+      telegram.addEventListener("click", (event) => {
+        event.preventDefault();
+        void connectBetaTelegram();
+      });
+    } else if (status.status === "pending_rejoin") {
+      telegram.textContent = authLocalized("TELEGRAM ПОСЛЕ ОДОБРЕНИЯ ADMIN", "TELEGRAM AFTER ADMIN APPROVAL");
+      telegram.setAttribute("aria-disabled", "true");
+      telegram.addEventListener("click", (event) => event.preventDefault());
+    } else {
+      telegram.textContent = authLocalized("СНАЧАЛА ВСТУПИТЕ В BETA", "JOIN BETA FIRST");
+      telegram.setAttribute("aria-disabled", "true");
+      telegram.addEventListener("click", (event) => event.preventDefault());
+    }
     const play = document.createElement("a");
     play.className = "beta-program__external";
     play.href = String(config.links?.googlePlay || "#");
@@ -3948,7 +4001,7 @@
       join.className = "primary-button";
       join.textContent = tester.everActivated
         ? authLocalized("ПОДАТЬ ЗАЯВКУ СНОВА", "REQUEST REJOIN")
-        : authLocalized("ВСТУПИТЬ / JOIN BETA", "JOIN BETA");
+        : authLocalized("ВСТУПИТЬ", "JOIN BETA");
       join.disabled = !betaProgramState.termsAccepted || Boolean(betaProgramState.action);
       join.addEventListener("click", () => void runBetaAction(
         "join",
