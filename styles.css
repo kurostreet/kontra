@@ -5803,3 +5803,97 @@ body.theme-day .settings-field textarea {
   line-height: 1.4;
   color: #ffb0b0;
 }
+
+
+/* KONTRA_SECURITY_CENTER_v1 */
+.profile-security-shortcut {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  gap: 13px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(72, 155, 255, .28);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(22, 75, 130, .16), rgba(8, 18, 32, .72));
+  cursor: pointer;
+}
+.profile-security-shortcut:focus-visible {
+  outline: 2px solid rgba(75, 170, 255, .75);
+  outline-offset: 2px;
+}
+.profile-security-shortcut__icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  border: 1px solid rgba(75, 170, 255, .34);
+  color: #52adff;
+  font-size: 1.5rem;
+  background: rgba(25, 105, 180, .08);
+}
+.profile-security-shortcut strong {
+  display: block;
+  letter-spacing: .08em;
+}
+.profile-security-shortcut p {
+  margin: 5px 0 0;
+  opacity: .72;
+  line-height: 1.4;
+  font-size: .83rem;
+}
+.profile-security-shortcut b {
+  font-size: 1.7rem;
+  color: #54b0ff;
+}
+.security-hub {
+  display: grid;
+  gap: 18px;
+}
+.security-hub__top {
+  display: grid;
+  gap: 13px;
+}
+.security-hub__back {
+  justify-self: start;
+}
+.security-hub__intro,
+.security-hub__group {
+  border: 1px solid rgba(92, 156, 230, .20);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(7, 14, 24, .72);
+}
+.security-hub__intro strong,
+.security-hub__group > header > strong {
+  display: block;
+  letter-spacing: .08em;
+}
+.security-hub__intro p,
+.security-hub__group > header > p {
+  margin: 6px 0 0;
+  opacity: .72;
+  line-height: 1.45;
+}
+.security-hub__group > header {
+  margin-bottom: 13px;
+}
+.security-hub__group--danger {
+  border-color: rgba(255, 74, 74, .24);
+}
+.security-hub__group--danger > header > strong {
+  color: #ff7777;
+}
+.security-hub .security-center,
+.security-hub .profile-account-delete,
+.security-hub .profile-legal-center {
+  margin-top: 0;
+}
+@media (max-width: 520px) {
+  .security-hub__intro,
+  .security-hub__group {
+    padding: 13px;
+    border-radius: 16px;
+  }
+}

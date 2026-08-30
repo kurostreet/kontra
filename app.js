@@ -3472,6 +3472,109 @@
     return section;
   }
 
+  // KONTRA_SECURITY_CENTER_v1
+  function createSecurityShortcut() {
+    const section = document.createElement("section");
+    section.className = "profile-security-shortcut";
+
+    const icon = document.createElement("span");
+    icon.className = "profile-security-shortcut__icon";
+    icon.textContent = "◇";
+
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = authLocalized("БЕЗОПАСНОСТЬ", "SECURITY");
+    const lead = document.createElement("p");
+    lead.textContent = authLocalized(
+      "Почта, Google, удаление аккаунта, конфиденциальность и правила.",
+      "Email, Google, account deletion, privacy and rules."
+    );
+    copy.append(title, lead);
+
+    const arrow = document.createElement("b");
+    arrow.textContent = "›";
+
+    section.append(icon, copy, arrow);
+    section.tabIndex = 0;
+    section.setAttribute("role", "button");
+    section.addEventListener("click", () => showView("security"));
+    section.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        showView("security");
+      }
+    });
+    return section;
+  }
+
+  function createSecurityHub() {
+    const wrap = document.createElement("div");
+    wrap.className = "security-hub";
+
+    const top = document.createElement("div");
+    top.className = "security-hub__top";
+
+    const back = document.createElement("button");
+    back.type = "button";
+    back.className = "secondary-button security-hub__back";
+    back.textContent = authLocalized("← НАЗАД В ПРОФИЛЬ", "← BACK TO PROFILE");
+    back.addEventListener("click", () => showView("profile"));
+
+    const intro = document.createElement("div");
+    intro.className = "security-hub__intro";
+    const title = document.createElement("strong");
+    title.textContent = authLocalized("БЕЗОПАСНОСТЬ", "SECURITY");
+    const lead = document.createElement("p");
+    lead.textContent = authLocalized(
+      "Управляйте способами входа, удалением аккаунта и документами в одном месте.",
+      "Manage sign-in methods, account deletion and legal documents in one place."
+    );
+    intro.append(title, lead);
+    top.append(back, intro);
+
+    const access = document.createElement("section");
+    access.className = "security-hub__group";
+    const accessHead = document.createElement("header");
+    const accessTitle = document.createElement("strong");
+    accessTitle.textContent = authLocalized("АККАУНТ И ВХОД", "ACCOUNT & SIGN-IN");
+    const accessLead = document.createElement("p");
+    accessLead.textContent = authLocalized(
+      "Почта и Google для входа и восстановления доступа.",
+      "Email and Google for sign-in and account recovery."
+    );
+    accessHead.append(accessTitle, accessLead);
+    access.append(accessHead, createSecurityCenter());
+
+    const management = document.createElement("section");
+    management.className = "security-hub__group security-hub__group--danger";
+    const managementHead = document.createElement("header");
+    const managementTitle = document.createElement("strong");
+    managementTitle.textContent = authLocalized("УПРАВЛЕНИЕ АККАУНТОМ", "ACCOUNT MANAGEMENT");
+    const managementLead = document.createElement("p");
+    managementLead.textContent = authLocalized(
+      "Безвозвратное удаление WEB-аккаунта и связанных игровых данных.",
+      "Permanent deletion of the WEB account and linked game data."
+    );
+    managementHead.append(managementTitle, managementLead);
+    management.append(managementHead, createAccountDeleteCenter());
+
+    const privacy = document.createElement("section");
+    privacy.className = "security-hub__group";
+    const privacyHead = document.createElement("header");
+    const privacyTitle = document.createElement("strong");
+    privacyTitle.textContent = authLocalized("КОНФИДЕНЦИАЛЬНОСТЬ", "PRIVACY");
+    const privacyLead = document.createElement("p");
+    privacyLead.textContent = authLocalized(
+      "Политика конфиденциальности, удаление аккаунта, поддержка и правила.",
+      "Privacy policy, account deletion, support and community rules."
+    );
+    privacyHead.append(privacyTitle, privacyLead);
+    privacy.append(privacyHead, createLegalCenter());
+
+    wrap.append(top, access, management, privacy);
+    return wrap;
+  }
+
   function createFullProfile() {
     const profile = authState.profile;
     const account = authState.account;
@@ -3527,7 +3630,7 @@
     logout.addEventListener("click", logoutAccount);
     footer.append(meta, logout);
 
-    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityCenter(), createAccountDeleteCenter(), createLegalCenter(), footer);
+    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityShortcut(), footer);
     return card;
   }
 
@@ -3540,8 +3643,10 @@
     syncAdminOnlyControls();
     const home = $("#homeProfileBody");
     const page = $("#profilePageBody");
+    const securityPage = $("#securityPageBody");
     if (home) home.replaceChildren(authState.account && authState.profile ? createCompactProfile() : createLockedProfile(true));
     if (page) page.replaceChildren(authState.account && authState.profile ? createFullProfile() : createLockedProfile(false));
+    if (securityPage) securityPage.replaceChildren(authState.account && authState.profile ? createSecurityHub() : createLockedProfile(false));
 
     const drawerTitle = $("#drawerAccountTitle");
     const drawerSubtitle = $("#drawerAccountSubtitle");
@@ -4680,7 +4785,9 @@
 
   function showView(name) {
     $$('[data-view]').forEach((view) => view.classList.toggle("is-active", view.dataset.view === name));
-    const navName = name === "lvlhub" ? "control" : name;
+    const securityHeading = $("#securityHubHeading");
+    if (securityHeading) securityHeading.textContent = authLocalized("БЕЗОПАСНОСТЬ", "SECURITY");
+    const navName = name === "lvlhub" ? "control" : (name === "security" ? "profile" : name);
     $$('.bottom-nav [data-nav]').forEach((button) => {
       const active = button.dataset.nav === navName;
       button.classList.toggle("is-active", active);
