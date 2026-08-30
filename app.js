@@ -1158,6 +1158,24 @@
     message: "",
     tone: ""
   };
+  let betaProgramState = {
+    loading: false,
+    adminLoading: false,
+    action: "",
+    loadedAt: 0,
+    requestId: 0,
+    error: "",
+    adminError: "",
+    tester: null,
+    counts: null,
+    testers: [],
+    adminRequests: [],
+    adminTesters: [],
+    termsAccepted: false,
+    messageText: "",
+    messageNotice: "",
+    messageTone: ""
+  };
   const GUEST_NOTIFICATION_READ_KEY = "kontra:notification-guest-read:v1";
   let notificationState = {
     open: false,
@@ -1729,9 +1747,11 @@
       lvlHubState.previewTouched = false;
       lvlHubState.error = "";
       lvlHubState.skinAction = { busy: false, skinId: "", error: "" };
+      resetBetaProgramState();
     }
     renderAuth();
     void fetchNotifications(true);
+    void fetchBetaProgram(!sameAccount);
   }
 
   function clearAuth() {
@@ -1745,6 +1765,7 @@
     lvlHubState.previewTouched = false;
     lvlHubState.error = "";
     lvlHubState.skinAction = { busy: false, skinId: "", error: "" };
+    resetBetaProgramState();
     renderAuth();
     renderLvlHub();
     void fetchNotifications(true);
@@ -3317,6 +3338,711 @@
     return section;
   }
 
+  // KONTRA_BETA_PROGRAM_UI_v1
+  function resetBetaProgramState() {
+    betaProgramState = {
+      loading: false,
+      adminLoading: false,
+      action: "",
+      loadedAt: 0,
+      requestId: 0,
+      error: "",
+      adminError: "",
+      tester: null,
+      counts: null,
+      testers: [],
+      adminRequests: [],
+      adminTesters: [],
+      termsAccepted: false,
+      messageText: "",
+      messageNotice: "",
+      messageTone: ""
+    };
+  }
+
+  function betaIsAdmin() {
+    return String(authState.account?.role || authState.profile?.role || "").toUpperCase() === "ADMIN";
+  }
+
+  function betaApiBase() {
+    const configured = String(config.betaBaseEndpoint || "").trim().replace(/\/+$/, "");
+    if (configured) return configured;
+    const auth = authBase();
+    const root = auth.replace(/\/auth\/?$/i, "").replace(/\/+$/, "");
+    return root ? root + "/beta" : "/api/beta";
+  }
+
+  async function betaRequest(path, options = {}) {
+    const base = betaApiBase();
+    if (!config.authEnabled || !base || !authState.sessionToken) throw new Error("invalid_session");
+    const headers = { Accept: "application/json", ...(options.headers || {}) };
+    if (options.body !== undefined) headers["Content-Type"] = "application/json";
+    headers.Authorization = "Bearer " + authState.sessionToken;
+    const response = await fetch(base + path, {
+      method: options.method || "GET",
+      cache: "no-store",
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+    });
+    let data = {};
+    try { data = await response.json(); } catch {}
+    if (!response.ok || data.ok === false) {
+      const error = new Error(String(data.error || ("HTTP_" + response.status)));
+      error.status = response.status;
+      error.payload = data;
+      throw error;
+    }
+    return data;
+  }
+
+  function betaStatusMeta(value) {
+    const status = String(value || "none").toLowerCase();
+    const labels = {
+      none: [authLocalized("НЕ УЧАСТВУЕТ", "NOT ENROLLED"), "is-none"],
+      telegram_pending: [authLocalized("ЖДЁТ TELEGRAM", "TELEGRAM PENDING"), "is-pending"],
+      active: [authLocalized("АКТИВНЫЙ ТЕСТЕР", "ACTIVE TESTER"), "is-active"],
+      left: [authLocalized("ВЫШЕЛ ИЗ БЕТЫ", "LEFT BETA"), "is-left"],
+      pending_rejoin: [authLocalized("ЗАЯВКА НА ВОЗВРАТ", "REJOIN PENDING"), "is-pending"],
+      rejected: [authLocalized("ЗАЯВКА ОТКЛОНЕНА", "REQUEST REJECTED"), "is-rejected"],
+      banned: [authLocalized("ДОСТУП ЗАБЛОКИРОВАН", "ACCESS BLOCKED"), "is-banned"]
+    };
+    const item = labels[status] || labels.none;
+    return { status, label: item[0], className: item[1] };
+  }
+
+  function betaPlayStatusMeta(value) {
+    const status = String(value || "pending").toLowerCase();
+    if (status === "synced") return { label: authLocalized("ИГРА СИНХРОНИЗИРОВАНА", "GAME SYNCED"), className: "is-active" };
+    if (status === "failed") return { label: authLocalized("ОШИБКА СИНХРОНИЗАЦИИ", "SYNC FAILED"), className: "is-banned" };
+    return { label: authLocalized("СИНХРОНИЗАЦИЯ С ИГРОЙ", "SYNCING WITH GAME"), className: "is-pending" };
+  }
+
+  function betaErrorText(error) {
+    const code = String(error?.message || error || "");
+    const labels = {
+      beta_terms_required: authLocalized("Подтвердите правила Beta Program.", "Accept the Beta Program rules."),
+      beta_banned: authLocalized("Доступ к Beta Program заблокирован.", "Beta Program access is blocked."),
+      beta_active_required: authLocalized("Действие доступно только активному тестеру.", "This action requires an active tester."),
+      message_required: authLocalized("Введите сообщение.", "Enter a message."),
+      message_rate_limited: authLocalized("Следующее сообщение можно отправить через 30 секунд.", "You can send another message in 30 seconds."),
+      enabled_required: authLocalized("Не удалось изменить префикс.", "Could not change the prefix."),
+      beta_pending_request_not_found: authLocalized("Заявка уже обработана. Обновите раздел.", "The request was already processed. Refresh the section."),
+      beta_not_banned: authLocalized("Игрок уже разблокирован.", "The player is already unblocked."),
+      admin_required: authLocalized("Нужны права ADMIN.", "ADMIN access is required."),
+      invalid_session: authLocalized("Сессия истекла. Войдите снова.", "Session expired. Sign in again.")
+    };
+    return labels[code] || authLocalized("Beta Program временно недоступна.", "Beta Program is temporarily unavailable.");
+  }
+
+  function betaMergeResponse(data) {
+    if (data?.tester && typeof data.tester === "object") betaProgramState.tester = data.tester;
+    if (data?.counts && typeof data.counts === "object") betaProgramState.counts = data.counts;
+  }
+
+  async function fetchBetaProgram(force = false) {
+    if (!authState.sessionToken || !authState.account) return;
+    if (betaProgramState.loading) return;
+    if (!force && betaProgramState.loadedAt && Date.now() - betaProgramState.loadedAt < 20000) return;
+    const requestId = betaProgramState.requestId + 1;
+    betaProgramState.requestId = requestId;
+    betaProgramState.loading = true;
+    betaProgramState.adminLoading = betaIsAdmin();
+    betaProgramState.error = "";
+    betaProgramState.adminError = "";
+    renderAuth();
+    const jobs = [
+      betaRequest("/me"),
+      betaRequest("/testers")
+    ];
+    if (betaIsAdmin()) {
+      jobs.push(betaRequest("/admin/requests"), betaRequest("/admin/testers"));
+    }
+    try {
+      const results = await Promise.allSettled(jobs);
+      if (requestId !== betaProgramState.requestId) return;
+      if (results[0].status !== "fulfilled") throw results[0].reason;
+      betaMergeResponse(results[0].value);
+      if (results[1].status === "fulfilled") {
+        betaMergeResponse(results[1].value);
+        betaProgramState.testers = Array.isArray(results[1].value.testers) ? results[1].value.testers : [];
+      }
+      if (betaIsAdmin()) {
+        if (results[2]?.status === "fulfilled") {
+          betaMergeResponse(results[2].value);
+          betaProgramState.adminRequests = Array.isArray(results[2].value.requests) ? results[2].value.requests : [];
+        } else {
+          betaProgramState.adminError = betaErrorText(results[2]?.reason);
+        }
+        if (results[3]?.status === "fulfilled") {
+          betaMergeResponse(results[3].value);
+          betaProgramState.adminTesters = Array.isArray(results[3].value.testers) ? results[3].value.testers : [];
+        } else {
+          betaProgramState.adminError = betaProgramState.adminError || betaErrorText(results[3]?.reason);
+        }
+      }
+      betaProgramState.loadedAt = Date.now();
+    } catch (error) {
+      if (["invalid_session", "unauthorized"].includes(String(error?.message || ""))) {
+        clearAuth();
+        return;
+      }
+      betaProgramState.error = betaErrorText(error);
+    } finally {
+      if (requestId === betaProgramState.requestId) {
+        betaProgramState.loading = false;
+        betaProgramState.adminLoading = false;
+        renderAuth();
+      }
+    }
+  }
+
+  async function runBetaAction(action, path, body, successText) {
+    if (betaProgramState.action) return;
+    betaProgramState.action = action;
+    betaProgramState.error = "";
+    betaProgramState.messageNotice = "";
+    renderAuth();
+    try {
+      const data = await betaRequest(path, { method: "POST", body });
+      betaMergeResponse(data);
+      betaProgramState.termsAccepted = false;
+      betaProgramState.messageNotice = successText;
+      betaProgramState.messageTone = "success";
+      toast(successText);
+      await fetchBetaProgram(true);
+    } catch (error) {
+      if (["invalid_session", "unauthorized"].includes(String(error?.message || ""))) {
+        clearAuth();
+        setLogin(true);
+        return;
+      }
+      betaProgramState.error = betaErrorText(error);
+    } finally {
+      betaProgramState.action = "";
+      renderAuth();
+    }
+  }
+
+  async function sendBetaMessage() {
+    if (betaProgramState.action) return;
+    const message = String(betaProgramState.messageText || "").trim();
+    if (!message || message.length > 1200) {
+      betaProgramState.messageNotice = authLocalized("Введите сообщение до 1200 символов.", "Enter a message up to 1200 characters.");
+      betaProgramState.messageTone = "error";
+      renderAuth();
+      return;
+    }
+    betaProgramState.action = "message";
+    betaProgramState.messageNotice = authLocalized("Отправляем сообщение…", "Sending message…");
+    betaProgramState.messageTone = "loading";
+    renderAuth();
+    try {
+      await betaRequest("/message", { method: "POST", body: { message } });
+      betaProgramState.messageText = "";
+      betaProgramState.messageNotice = authLocalized("Сообщение сохранено в Beta Program.", "Message saved in Beta Program.");
+      betaProgramState.messageTone = "success";
+      toast(betaProgramState.messageNotice);
+      await fetchBetaProgram(true);
+    } catch (error) {
+      betaProgramState.messageNotice = betaErrorText(error);
+      betaProgramState.messageTone = "error";
+    } finally {
+      betaProgramState.action = "";
+      renderAuth();
+    }
+  }
+
+  async function runBetaAdminDecision(row, decision) {
+    if (betaProgramState.action) return;
+    const did = String(row?.did || "");
+    const username = String(row?.username || "Player");
+    if (!did) return;
+    const destructive = ["reject", "block", "remove_block"].includes(decision);
+    let note = "";
+    if (destructive) {
+      note = String(window.prompt(authLocalized(
+        "Причина для " + username + " (можно оставить пустой):",
+        "Reason for " + username + " (optional):"
+      ), "") ?? "").trim().slice(0, 240);
+    }
+    const actionLabel = {
+      approve: authLocalized("одобрить заявку", "approve the request"),
+      reject: authLocalized("отклонить заявку", "reject the request"),
+      remove_block: authLocalized("удалить и заблокировать тестера", "remove and block the tester"),
+      unblock: authLocalized("разблокировать игрока", "unblock the player")
+    }[decision] || decision;
+    if (!window.confirm(authLocalized(
+      "Подтвердить: " + actionLabel + " — " + username + "?",
+      "Confirm: " + actionLabel + " — " + username + "?"
+    ))) return;
+    betaProgramState.action = "admin:" + decision + ":" + did;
+    betaProgramState.adminError = "";
+    renderAuth();
+    try {
+      await betaRequest("/admin/decision", { method: "POST", body: { did, decision, note } });
+      toast(authLocalized("Решение применено.", "Decision applied."));
+      await fetchBetaProgram(true);
+    } catch (error) {
+      betaProgramState.adminError = betaErrorText(error);
+    } finally {
+      betaProgramState.action = "";
+      renderAuth();
+    }
+  }
+
+  function createBetaBadge(value, playStatus = false) {
+    const meta = playStatus ? betaPlayStatusMeta(value) : betaStatusMeta(value);
+    const badge = document.createElement("span");
+    badge.className = "beta-program__status " + meta.className;
+    badge.textContent = meta.label;
+    return badge;
+  }
+
+  function createBetaMetric(label, value, className = "") {
+    const item = document.createElement("div");
+    item.className = "beta-program__metric" + (className ? " " + className : "");
+    const small = document.createElement("small");
+    small.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = String(value);
+    item.append(small, strong);
+    return item;
+  }
+
+  function betaTimestamp(value) {
+    const raw = Number(value || 0);
+    if (!raw) return "—";
+    const ms = raw < 1e12 ? raw * 1000 : raw;
+    return new Date(ms).toLocaleString(language === "ru" ? "ru-RU" : "en-GB", {
+      day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function betaRowValue(row, camel, snake, fallback = "") {
+    const value = row?.[camel] ?? row?.[snake];
+    return value === undefined || value === null ? fallback : value;
+  }
+
+  function createBetaStep(number, titleText, bodyText, state = "") {
+    const step = document.createElement("article");
+    step.className = "beta-program__step" + (state ? " " + state : "");
+    const numberNode = document.createElement("span");
+    numberNode.textContent = String(number);
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = titleText;
+    const body = document.createElement("p");
+    body.textContent = bodyText;
+    copy.append(title, body);
+    step.append(numberNode, copy);
+    return step;
+  }
+
+  function createBetaAdminPanel() {
+    const section = document.createElement("section");
+    section.className = "beta-admin";
+    const header = document.createElement("header");
+    const copy = document.createElement("div");
+    const eyebrow = document.createElement("small");
+    eyebrow.textContent = "ADMIN";
+    const title = document.createElement("strong");
+    title.textContent = authLocalized("УПРАВЛЕНИЕ BETA PROGRAM", "BETA PROGRAM MANAGEMENT");
+    const lead = document.createElement("p");
+    lead.textContent = authLocalized(
+      "Повторные заявки, статусы тестеров и безопасное удаление из программы.",
+      "Rejoin requests, tester states and safe removal from the program."
+    );
+    copy.append(eyebrow, title, lead);
+    const refresh = document.createElement("button");
+    refresh.type = "button";
+    refresh.className = "secondary-button beta-program__refresh";
+    refresh.textContent = betaProgramState.adminLoading ? "…" : "↻";
+    refresh.disabled = betaProgramState.loading || Boolean(betaProgramState.action);
+    refresh.setAttribute("aria-label", authLocalized("Обновить управление", "Refresh management"));
+    refresh.addEventListener("click", () => void fetchBetaProgram(true));
+    header.append(copy, refresh);
+    section.append(header);
+
+    if (betaProgramState.adminError) {
+      const error = document.createElement("p");
+      error.className = "beta-program__notice is-error";
+      error.textContent = betaProgramState.adminError;
+      section.append(error);
+    }
+
+    const requestsTitle = document.createElement("h4");
+    requestsTitle.textContent = authLocalized(
+      "ЗАЯВКИ НА ВОЗВРАТ · " + betaProgramState.adminRequests.length,
+      "REJOIN REQUESTS · " + betaProgramState.adminRequests.length
+    );
+    section.append(requestsTitle);
+    const requests = document.createElement("div");
+    requests.className = "beta-admin__list";
+    if (!betaProgramState.adminRequests.length) {
+      const empty = document.createElement("p");
+      empty.className = "beta-admin__empty";
+      empty.textContent = betaProgramState.adminLoading
+        ? authLocalized("Загрузка заявок…", "Loading requests…")
+        : authLocalized("Новых заявок нет.", "No pending requests.");
+      requests.append(empty);
+    }
+    betaProgramState.adminRequests.forEach((row) => {
+      const card = document.createElement("article");
+      card.className = "beta-admin__card";
+      const top = document.createElement("div");
+      const identity = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = String(row.username || "Player");
+      const meta = document.createElement("small");
+      meta.textContent = authLocalized("Повторное вступление", "Rejoin") + " · " + betaTimestamp(row.created_at);
+      identity.append(name, meta);
+      top.append(identity, createBetaBadge(row.tester_status || "pending_rejoin"));
+      const actions = document.createElement("div");
+      actions.className = "beta-admin__actions";
+      [
+        ["approve", authLocalized("ОДОБРИТЬ", "APPROVE"), "primary-button"],
+        ["reject", authLocalized("ОТКЛОНИТЬ", "REJECT"), "secondary-button"],
+        ["remove_block", authLocalized("БЛОК", "BLOCK"), "danger-button"]
+      ].forEach(([decision, label, className]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = className;
+        button.textContent = label;
+        button.disabled = Boolean(betaProgramState.action);
+        button.addEventListener("click", () => void runBetaAdminDecision(row, decision));
+        actions.append(button);
+      });
+      card.append(top, actions);
+      requests.append(card);
+    });
+    section.append(requests);
+
+    const all = document.createElement("details");
+    all.className = "beta-admin__all";
+    const summary = document.createElement("summary");
+    summary.textContent = authLocalized(
+      "ВСЕ ЗАПИСИ · " + betaProgramState.adminTesters.length,
+      "ALL RECORDS · " + betaProgramState.adminTesters.length
+    );
+    const list = document.createElement("div");
+    list.className = "beta-admin__list";
+    betaProgramState.adminTesters.forEach((row) => {
+      const card = document.createElement("article");
+      card.className = "beta-admin__card beta-admin__card--tester";
+      const top = document.createElement("div");
+      const identity = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = String(row.username || "Player");
+      const meta = document.createElement("small");
+      const salary = Number(betaRowValue(row, "salaryTotal", "salary_total", 0)).toLocaleString(language === "ru" ? "ru-RU" : "en-US");
+      const messages = Number(betaRowValue(row, "messageCount", "message_count", 0));
+      meta.textContent = authLocalized("Начислено", "Paid") + ": " + salary + " TK · " + authLocalized("сообщений", "messages") + ": " + messages;
+      identity.append(name, meta);
+      const badges = document.createElement("div");
+      badges.className = "beta-admin__badges";
+      badges.append(
+        createBetaBadge(row.status),
+        createBetaBadge(betaRowValue(row, "playStatus", "play_status", "pending"), true)
+      );
+      top.append(identity, badges);
+      const sync = document.createElement("small");
+      sync.className = "beta-admin__sync";
+      const revision = Number(betaRowValue(row, "syncRevision", "sync_revision", 0));
+      const synced = Number(betaRowValue(row, "syncedRevision", "synced_revision", 0));
+      sync.textContent = "SYNC " + synced + "/" + revision + " · " + betaTimestamp(betaRowValue(row, "syncedAt", "synced_at", 0));
+      card.append(top, sync);
+      const status = String(row.status || "none");
+      if (status === "banned") {
+        const unblock = document.createElement("button");
+        unblock.type = "button";
+        unblock.className = "secondary-button";
+        unblock.textContent = authLocalized("РАЗБЛОКИРОВАТЬ", "UNBLOCK");
+        unblock.disabled = Boolean(betaProgramState.action);
+        unblock.addEventListener("click", () => void runBetaAdminDecision(row, "unblock"));
+        card.append(unblock);
+      } else if (!["left", "rejected"].includes(status)) {
+        const block = document.createElement("button");
+        block.type = "button";
+        block.className = "danger-button";
+        block.textContent = authLocalized("УДАЛИТЬ И ЗАБЛОКИРОВАТЬ", "REMOVE & BLOCK");
+        block.disabled = Boolean(betaProgramState.action);
+        block.addEventListener("click", () => void runBetaAdminDecision(row, "remove_block"));
+        card.append(block);
+      }
+      list.append(card);
+    });
+    if (!betaProgramState.adminTesters.length) {
+      const empty = document.createElement("p");
+      empty.className = "beta-admin__empty";
+      empty.textContent = authLocalized("Записей пока нет.", "No records yet.");
+      list.append(empty);
+    }
+    all.append(summary, list);
+    section.append(all);
+    const limitation = document.createElement("small");
+    limitation.className = "beta-admin__limitation";
+    limitation.textContent = authLocalized(
+      "Счётчик сообщений уже работает; просмотр текста появится после отдельного защищённого endpoint.",
+      "Message counts work now; message text review requires a separate protected endpoint."
+    );
+    section.append(limitation);
+    return section;
+  }
+
+  function createBetaProgramCenter() {
+    const section = document.createElement("section");
+    section.className = "beta-program";
+    section.id = "betaProgram";
+
+    const header = document.createElement("header");
+    const heading = document.createElement("div");
+    const eyebrow = document.createElement("small");
+    eyebrow.textContent = "KONTRA LABS";
+    const title = document.createElement("strong");
+    title.textContent = "BETA PROGRAM";
+    const lead = document.createElement("p");
+    lead.textContent = authLocalized(
+      "Закрытое тестирование новых функций KONTRA с игровым статусом TESTER и наградой.",
+      "Closed testing of new KONTRA features with TESTER game status and rewards."
+    );
+    heading.append(eyebrow, title, lead);
+    const refresh = document.createElement("button");
+    refresh.type = "button";
+    refresh.className = "secondary-button beta-program__refresh";
+    refresh.textContent = betaProgramState.loading ? "…" : "↻";
+    refresh.disabled = betaProgramState.loading || Boolean(betaProgramState.action);
+    refresh.setAttribute("aria-label", authLocalized("Обновить Beta Program", "Refresh Beta Program"));
+    refresh.addEventListener("click", () => void fetchBetaProgram(true));
+    header.append(heading, refresh);
+    section.append(header);
+
+    if (!betaProgramState.tester && betaProgramState.loading) {
+      const loading = document.createElement("p");
+      loading.className = "beta-program__empty";
+      loading.textContent = authLocalized("Загружаем Beta Program…", "Loading Beta Program…");
+      section.append(loading);
+      return section;
+    }
+    if (!betaProgramState.tester && betaProgramState.error) {
+      const error = document.createElement("p");
+      error.className = "beta-program__notice is-error";
+      error.textContent = betaProgramState.error;
+      section.append(error);
+      return section;
+    }
+
+    const tester = betaProgramState.tester || { status: "none", salaryDaily: 500 };
+    const status = betaStatusMeta(tester.status);
+    const counts = betaProgramState.counts || {};
+    const active = integer(counts.active, 0, 0, 1000000);
+    const enrolled = integer(counts.enrolled, 0, 0, 1000000);
+    const target = integer(counts.publicTarget, 20, 1, 1000000);
+    const progressValue = Math.min(target, enrolled);
+
+    const progress = document.createElement("div");
+    progress.className = "beta-program__progress";
+    const progressTop = document.createElement("div");
+    const progressCopy = document.createElement("div");
+    const progressLabel = document.createElement("small");
+    progressLabel.textContent = authLocalized("НАБОР ТЕСТЕРОВ", "TESTER RECRUITMENT");
+    const progressCount = document.createElement("strong");
+    progressCount.textContent = enrolled + " / " + target;
+    progressCopy.append(progressLabel, progressCount);
+    progressTop.append(progressCopy, createBetaBadge(status.status));
+    const track = document.createElement("div");
+    track.className = "beta-program__track";
+    track.setAttribute("role", "progressbar");
+    track.setAttribute("aria-valuemin", "0");
+    track.setAttribute("aria-valuemax", String(target));
+    track.setAttribute("aria-valuenow", String(progressValue));
+    const bar = document.createElement("span");
+    bar.style.width = Math.round((progressValue / target) * 100) + "%";
+    track.append(bar);
+    progress.append(progressTop, track);
+    section.append(progress);
+
+    const metrics = document.createElement("div");
+    metrics.className = "beta-program__metrics";
+    metrics.append(
+      createBetaMetric(authLocalized("АКТИВНЫ", "ACTIVE"), active, "is-green"),
+      createBetaMetric(authLocalized("В ПРОГРАММЕ", "ENROLLED"), enrolled, "is-cyan"),
+      createBetaMetric(authLocalized("В ДЕНЬ", "PER DAY"), Number(tester.salaryDaily || 500).toLocaleString(language === "ru" ? "ru-RU" : "en-US") + " TK", "is-gold"),
+      createBetaMetric(authLocalized("НАЧИСЛЕНО", "PAID"), Number(tester.salaryTotal || 0).toLocaleString(language === "ru" ? "ru-RU" : "en-US") + " TK")
+    );
+    section.append(metrics);
+
+    const steps = document.createElement("div");
+    steps.className = "beta-program__steps";
+    steps.append(
+      createBetaStep(1, authLocalized("Вступить", "Join"), authLocalized("Один бесплатный вход; повторное вступление проверяет ADMIN.", "One free entry; rejoining requires ADMIN approval."), ["telegram_pending", "active", "pending_rejoin"].includes(status.status) ? "is-done" : ""),
+      createBetaStep(2, authLocalized("Подтвердить Telegram", "Verify Telegram"), authLocalized("Вступите в группу тестеров. Автоматическая проверка ещё подключается.", "Join the tester group. Automated verification is still being connected."), tester.telegramVerified ? "is-done" : ""),
+      createBetaStep(3, authLocalized("Получить Google Play сборку", "Get the Google Play build"), authLocalized("Официальная closed-testing ссылка появится после публикации набора.", "The official closed-testing link will appear after the track is published."), status.status === "active" ? "is-ready" : "")
+    );
+    const telegram = document.createElement("a");
+    telegram.className = "beta-program__external";
+    telegram.href = String(config.links?.betaTelegram || "https://t.me/+MkoIhBP19_E3NDM6");
+    telegram.target = "_blank";
+    telegram.rel = "noopener noreferrer";
+    telegram.textContent = authLocalized("ГРУППА ТЕСТЕРОВ В TELEGRAM ↗", "TESTER GROUP ON TELEGRAM ↗");
+    const play = document.createElement("a");
+    play.className = "beta-program__external";
+    play.href = String(config.links?.googlePlay || "#");
+    play.target = "_blank";
+    play.rel = "noopener noreferrer";
+    play.textContent = "GOOGLE PLAY ↗";
+    steps.append(telegram, play);
+    section.append(steps);
+
+    if (status.status !== "none" && (tester.gameSyncPending || tester.playStatus === "pending" || tester.gameSyncError)) {
+      const sync = document.createElement("div");
+      sync.className = "beta-program__sync" + (tester.gameSyncError ? " is-error" : "");
+      sync.append(createBetaBadge(tester.gameSyncError ? "failed" : (tester.playStatus || "pending"), true));
+      const text = document.createElement("span");
+      text.textContent = tester.gameSyncError
+        ? authLocalized("Worker повторит синхронизацию автоматически.", "Worker will retry synchronization automatically.")
+        : authLocalized("Команда поставлена в очередь Worker → Lua v20/v99.", "Command queued through Worker → Lua v20/v99.");
+      sync.append(text);
+      section.append(sync);
+    }
+
+    if (tester.blocked && tester.blockReason) {
+      const blocked = document.createElement("p");
+      blocked.className = "beta-program__notice is-error";
+      blocked.textContent = authLocalized("Причина: ", "Reason: ") + String(tester.blockReason);
+      section.append(blocked);
+    }
+    if (betaProgramState.error) {
+      const error = document.createElement("p");
+      error.className = "beta-program__notice is-error";
+      error.textContent = betaProgramState.error;
+      section.append(error);
+    }
+    if (betaProgramState.messageNotice) {
+      const notice = document.createElement("p");
+      notice.className = "beta-program__notice" + (betaProgramState.messageTone ? " is-" + betaProgramState.messageTone : "");
+      notice.textContent = betaProgramState.messageNotice;
+      section.append(notice);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "beta-program__actions";
+    if (["none", "left", "rejected"].includes(status.status)) {
+      const terms = document.createElement("label");
+      terms.className = "beta-program__terms";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = betaProgramState.termsAccepted;
+      checkbox.disabled = Boolean(betaProgramState.action);
+      checkbox.addEventListener("change", () => {
+        betaProgramState.termsAccepted = checkbox.checked;
+        join.disabled = !checkbox.checked || Boolean(betaProgramState.action);
+      });
+      const text = document.createElement("span");
+      text.textContent = authLocalized(
+        "Принимаю правила: Telegram обязателен, награда 500 TK/день только активному тестеру.",
+        "I accept the rules: Telegram is required; 500 TK/day is paid only to an active tester."
+      );
+      terms.append(checkbox, text);
+      const join = document.createElement("button");
+      join.type = "button";
+      join.className = "primary-button";
+      join.textContent = tester.everActivated
+        ? authLocalized("ПОДАТЬ ЗАЯВКУ СНОВА", "REQUEST REJOIN")
+        : authLocalized("ВСТУПИТЬ / JOIN BETA", "JOIN BETA");
+      join.disabled = !betaProgramState.termsAccepted || Boolean(betaProgramState.action);
+      join.addEventListener("click", () => void runBetaAction(
+        "join",
+        "/join",
+        { acceptRules: true, telegramRequired: true },
+        tester.everActivated
+          ? authLocalized("Заявка отправлена администратору.", "Request sent to the administrator.")
+          : authLocalized("Вы вступили. Завершите Telegram-подтверждение.", "You joined. Complete Telegram verification.")
+      ));
+      actions.append(terms, join);
+    }
+    if (status.status === "active") {
+      const prefix = document.createElement("button");
+      prefix.type = "button";
+      prefix.className = "secondary-button";
+      prefix.textContent = tester.prefixEnabled
+        ? authLocalized("TESTER-ПРЕФИКС: ВКЛ", "TESTER PREFIX: ON")
+        : authLocalized("TESTER-ПРЕФИКС: ВЫКЛ", "TESTER PREFIX: OFF");
+      prefix.disabled = Boolean(betaProgramState.action);
+      prefix.addEventListener("click", () => void runBetaAction(
+        "prefix",
+        "/prefix",
+        { enabled: !tester.prefixEnabled },
+        authLocalized("Настройка префикса отправлена в игру.", "Prefix setting was sent to the game.")
+      ));
+      actions.append(prefix);
+    }
+    if (["telegram_pending", "active", "pending_rejoin"].includes(status.status)) {
+      const leave = document.createElement("button");
+      leave.type = "button";
+      leave.className = "danger-button";
+      leave.textContent = authLocalized("ВЫЙТИ ИЗ BETA", "LEAVE BETA");
+      leave.disabled = Boolean(betaProgramState.action);
+      leave.addEventListener("click", () => {
+        if (!window.confirm(authLocalized(
+          "Выйти из Beta Program? Статус и ежедневная награда будут отключены.",
+          "Leave Beta Program? Tester status and the daily reward will be disabled."
+        ))) return;
+        void runBetaAction("leave", "/leave", {}, authLocalized("Вы вышли из Beta Program.", "You left Beta Program."));
+      });
+      actions.append(leave);
+    }
+    if (actions.childElementCount) section.append(actions);
+
+    if (status.status === "active") {
+      const message = document.createElement("form");
+      message.className = "beta-program__message";
+      const messageLabel = document.createElement("label");
+      messageLabel.textContent = authLocalized("СООБЩЕНИЕ РАЗРАБОТЧИКУ", "MESSAGE THE DEVELOPER");
+      const textarea = document.createElement("textarea");
+      textarea.maxLength = 1200;
+      textarea.rows = 4;
+      textarea.placeholder = authLocalized("Опишите баг или предложение…", "Describe a bug or suggestion…");
+      textarea.value = betaProgramState.messageText;
+      textarea.disabled = Boolean(betaProgramState.action);
+      textarea.addEventListener("input", () => { betaProgramState.messageText = textarea.value; });
+      const send = document.createElement("button");
+      send.type = "submit";
+      send.className = "primary-button";
+      send.textContent = betaProgramState.action === "message" ? authLocalized("ОТПРАВКА…", "SENDING…") : authLocalized("ОТПРАВИТЬ", "SEND");
+      send.disabled = Boolean(betaProgramState.action);
+      message.addEventListener("submit", (event) => { event.preventDefault(); void sendBetaMessage(); });
+      message.append(messageLabel, textarea, send);
+      section.append(message);
+    }
+
+    const roster = document.createElement("details");
+    roster.className = "beta-program__roster";
+    const rosterSummary = document.createElement("summary");
+    rosterSummary.textContent = authLocalized(
+      "УЧАСТНИКИ · " + betaProgramState.testers.length,
+      "TESTERS · " + betaProgramState.testers.length
+    );
+    const rosterList = document.createElement("div");
+    rosterList.className = "beta-program__roster-list";
+    betaProgramState.testers.forEach((row) => {
+      const item = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = String(row.username || "Player");
+      item.append(name, createBetaBadge(row.status));
+      rosterList.append(item);
+    });
+    if (!betaProgramState.testers.length) {
+      const empty = document.createElement("p");
+      empty.textContent = authLocalized("Список пока пуст.", "The list is empty.");
+      rosterList.append(empty);
+    }
+    roster.append(rosterSummary, rosterList);
+    section.append(roster);
+
+    if (betaIsAdmin()) section.append(createBetaAdminPanel());
+    return section;
+  }
+
   function createAccountDeleteCenter() {
     const section = document.createElement("section");
     section.className = "profile-account-delete";
@@ -3696,7 +4422,7 @@
     logout.addEventListener("click", logoutAccount);
     footer.append(meta, logout);
 
-    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createProfileQuickTools(), createSecurityShortcut(), footer);
+    card.append(hero, createAvatarPicker(profile.avatarId), stats, createBetaProgramCenter(), createPromoRedeemCenter(), createProfileQuickTools(), createSecurityShortcut(), footer);
     return card;
   }
 
@@ -4867,6 +5593,7 @@
       else if (seasonArchiveState.mode === "seasons") fetchSeasonList(false);
       else void preparePlayerComparison();
     }
+    if (name === "profile" && authState.sessionToken) void fetchBetaProgram(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
