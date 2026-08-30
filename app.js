@@ -3988,7 +3988,7 @@
       checkbox.disabled = Boolean(betaProgramState.action);
       checkbox.addEventListener("change", () => {
         betaProgramState.termsAccepted = checkbox.checked;
-        join.disabled = !checkbox.checked || Boolean(betaProgramState.action);
+        join.disabled = false;
       });
       const text = document.createElement("span");
       text.textContent = authLocalized(
@@ -4002,15 +4002,13 @@
       join.textContent = tester.everActivated
         ? authLocalized("ПОДАТЬ ЗАЯВКУ СНОВА", "REQUEST REJOIN")
         : authLocalized("ВСТУПИТЬ", "JOIN BETA");
-      join.disabled = !betaProgramState.termsAccepted || Boolean(betaProgramState.action);
-      join.addEventListener("click", () => void runBetaAction(
-        "join",
-        "/join",
-        { acceptRules: true, telegramRequired: true },
-        tester.everActivated
-          ? authLocalized("Заявка отправлена администратору.", "Request sent to the administrator.")
-          : authLocalized("Вы вступили. Завершите Telegram-подтверждение.", "You joined. Complete Telegram verification.")
-      ));
+      join.disabled = false;
+      join.addEventListener("click", () => {
+        window.alert(authLocalized(
+          "🚧 В разработке!\nСкоро заработает!",
+          "🚧 In development!\nComing soon!"
+        ));
+      });
       actions.append(terms, join);
     }
     if (status.status === "active") {
