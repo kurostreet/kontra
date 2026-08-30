@@ -3575,6 +3575,72 @@
     return wrap;
   }
 
+  // KONTRA_CONTROL_TO_LVLHUB_PROFILE_TOOLS_v1
+  function createProfileQuickTools() {
+    const section = document.createElement("section");
+    section.className = "profile-quick-tools";
+
+    const head = document.createElement("header");
+    const title = document.createElement("strong");
+    title.textContent = authLocalized("БЫСТРЫЙ ДОСТУП", "QUICK ACCESS");
+    const lead = document.createElement("p");
+    lead.textContent = authLocalized(
+      "Аркада и инструменты аккаунта находятся здесь.",
+      "Arcade and account tools are available here."
+    );
+    head.append(title, lead);
+
+    const grid = document.createElement("div");
+    grid.className = "profile-quick-tools__grid";
+
+    const pinball = document.createElement("button");
+    pinball.type = "button";
+    pinball.className = "profile-tool-card profile-tool-card--pinball";
+    const pinIcon = document.createElement("span");
+    pinIcon.className = "profile-tool-card__icon";
+    pinIcon.textContent = "◉";
+    const pinCopy = document.createElement("span");
+    pinCopy.className = "profile-tool-card__copy";
+    const pinTitle = document.createElement("strong");
+    pinTitle.textContent = t("retroPinball");
+    const pinLead = document.createElement("small");
+    pinLead.textContent = t("retroPinballText");
+    pinCopy.append(pinTitle, pinLead);
+    const pinArrow = document.createElement("b");
+    pinArrow.textContent = "›";
+    pinball.append(pinIcon, pinCopy, pinArrow);
+    pinball.addEventListener("click", () => {
+      const launch = $("#pinballLaunch");
+      if (launch) launch.click();
+    });
+    grid.append(pinball);
+
+    const isAdmin = String(authState.account?.role || authState.profile?.role || "").toUpperCase() === "ADMIN";
+    if (isAdmin) {
+      const announcements = document.createElement("button");
+      announcements.type = "button";
+      announcements.className = "profile-tool-card profile-tool-card--admin";
+      const adminIcon = document.createElement("span");
+      adminIcon.className = "profile-tool-card__icon";
+      adminIcon.textContent = "✦";
+      const adminCopy = document.createElement("span");
+      adminCopy.className = "profile-tool-card__copy";
+      const adminTitle = document.createElement("strong");
+      adminTitle.textContent = t("announcementCenter");
+      const adminLead = document.createElement("small");
+      adminLead.textContent = t("announcementTileText");
+      adminCopy.append(adminTitle, adminLead);
+      const adminArrow = document.createElement("b");
+      adminArrow.textContent = "›";
+      announcements.append(adminIcon, adminCopy, adminArrow);
+      announcements.addEventListener("click", () => openControlPanel("announcements"));
+      grid.append(announcements);
+    }
+
+    section.append(head, grid);
+    return section;
+  }
+
   function createFullProfile() {
     const profile = authState.profile;
     const account = authState.account;
@@ -3630,7 +3696,7 @@
     logout.addEventListener("click", logoutAccount);
     footer.append(meta, logout);
 
-    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityShortcut(), footer);
+    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createProfileQuickTools(), createSecurityShortcut(), footer);
     return card;
   }
 
@@ -9017,8 +9083,12 @@
     });
     $$('[data-nav]').forEach((button) => button.addEventListener("click", (event) => {
       event.preventDefault();
-      showView(button.dataset.nav);
-      if (button.dataset.nav === "control" && authState.sessionToken) void fetchLvlBootstrap(false);
+      const nav = String(button.dataset.nav || "");
+      if (nav === "control") {
+        openLvlHub("overview");
+        return;
+      }
+      showView(nav);
     }));
     $("#menuButton").addEventListener("click", () => setDrawer(!$("#drawer").classList.contains("is-open")));
     $("#scrim").addEventListener("click", () => setDrawer(false));
