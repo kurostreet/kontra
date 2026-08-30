@@ -1569,6 +1569,54 @@
     return String(config.authBaseEndpoint || "").trim().replace(/\/+$/, "");
   }
 
+  // KONTRA_ACCOUNT_DELETE_UI_v1
+  const ACCOUNT_DELETE_RECEIPT_KEY = "kontra:account-delete-receipt";
+
+  function accountDeleteApiBase() {
+    const base = authBase();
+    if (!base) return "";
+    return /\/auth$/i.test(base) ? base.slice(0, -5) : base;
+  }
+
+  async function accountDeleteRequest(body) {
+    const base = accountDeleteApiBase();
+    if (!base || !authState.sessionToken) throw new Error("invalid_session");
+    const response = await fetch(`${base}/account/delete/request`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authState.sessionToken}`
+      },
+      body: JSON.stringify(body || {})
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) {
+      const error = new Error(String(data.error || `HTTP_${response.status}`));
+      error.status = response.status;
+      error.payload = data;
+      throw error;
+    }
+    return data;
+  }
+
+  function accountDeleteErrorMessage(error) {
+    const code = String(error?.message || error || "");
+    const map = {
+      password_required: ["Для этого аккаунта нужен текущий игровой пароль.", "This account requires the current game password."],
+      invalid_credentials: ["Неверный пароль.", "Incorrect password."],
+      username_confirmation_mismatch: ["Логин введён неверно.", "The username confirmation does not match."],
+      delete_confirmation_required: ["Введите DELETE заглавными буквами.", "Type DELETE in uppercase."],
+      account_control_busy: ["Подождите завершения текущей WEB-команды и повторите.", "Wait for the current WEB command to finish and try again."],
+      account_deletion_in_progress: ["Удаление этого аккаунта уже выполняется.", "Account deletion is already in progress."],
+      invalid_session: ["Сессия истекла. Войдите снова.", "Your session expired. Sign in again."],
+      account_not_found: ["Аккаунт не найден.", "Account not found."]
+    };
+    const pair = map[code];
+    return pair ? authLocalized(pair[0], pair[1]) : authLocalized("Не удалось начать удаление. Повторите позже.", "Could not start deletion. Try again later.");
+  }
+
   function leaderboardEndpoint() {
     return String(config.leaderboardEndpoint || "").trim();
   }
@@ -3269,6 +3317,131 @@
     return section;
   }
 
+  function createAccountDeleteCenter() {
+    const section = document.createElement("section");
+    section.className = "profile-account-delete";
+
+    const header = document.createElement("header");
+    const title = document.createElement("strong");
+    title.textContent = t("deleteAccount");
+    const lead = document.createElement("p");
+    lead.textContent = authLocalized(
+      "Безвозвратно удаляет WEB-аккаунт и связанные игровые данные. Перед удалением выйдите с игрового сервера.",
+      "Permanently deletes the WEB account and linked game data. Disconnect from the game server before deleting."
+    );
+    header.append(title, lead);
+
+    const details = document.createElement("details");
+    details.className = "profile-account-delete__details";
+    const summary = document.createElement("summary");
+    summary.textContent = authLocalized("ОТКРЫТЬ УДАЛЕНИЕ АККАУНТА", "OPEN ACCOUNT DELETION");
+
+    const form = document.createElement("form");
+    form.className = "profile-account-delete__form";
+    form.autocomplete = "off";
+
+    const usernameLabel = document.createElement("label");
+    usernameLabel.textContent = authLocalized("Введите свой логин для подтверждения", "Enter your username to confirm");
+    const username = document.createElement("input");
+    username.type = "text";
+    username.maxLength = 40;
+    username.autocomplete = "username";
+    username.placeholder = String(authState.account?.username || "");
+    username.required = true;
+    usernameLabel.append(username);
+
+    const passwordLabel = document.createElement("label");
+    passwordLabel.textContent = authLocalized(
+      "Текущий пароль (если у аккаунта установлен игровой пароль)",
+      "Current password (if the account has a game password)"
+    );
+    const password = document.createElement("input");
+    password.type = "password";
+    password.maxLength = 256;
+    password.autocomplete = "current-password";
+    passwordLabel.append(password);
+
+    const confirmationLabel = document.createElement("label");
+    confirmationLabel.textContent = authLocalized("Введите DELETE", "Type DELETE");
+    const confirmation = document.createElement("input");
+    confirmation.type = "text";
+    confirmation.maxLength = 16;
+    confirmation.autocomplete = "off";
+    confirmation.placeholder = "DELETE";
+    confirmation.required = true;
+    confirmationLabel.append(confirmation);
+
+    const warning = document.createElement("p");
+    warning.className = "profile-account-delete__warning";
+    warning.textContent = authLocalized(
+      "Операция необратима. Если игрок сейчас находится на сервере, удаление будет отклонено.",
+      "This cannot be undone. If your player is currently on the server, deletion will be rejected."
+    );
+
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.className = "secondary-button danger-button profile-account-delete__submit";
+    submit.textContent = t("deleteAccount");
+
+    const status = document.createElement("small");
+    status.className = "profile-account-delete__status";
+    status.hidden = true;
+
+    form.append(usernameLabel, passwordLabel, confirmationLabel, warning, submit, status);
+    details.append(summary, form);
+    section.append(header, details);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const typedUsername = username.value.trim();
+      const expectedUsername = String(authState.account?.username || "").trim();
+
+      if (!typedUsername || typedUsername.toLocaleLowerCase("en-US") !== expectedUsername.toLocaleLowerCase("en-US")) {
+        status.hidden = false;
+        status.textContent = accountDeleteErrorMessage(new Error("username_confirmation_mismatch"));
+        return;
+      }
+      if (confirmation.value.trim() !== "DELETE") {
+        status.hidden = false;
+        status.textContent = accountDeleteErrorMessage(new Error("delete_confirmation_required"));
+        return;
+      }
+      if (!confirm(authLocalized(
+        "Удалить аккаунт навсегда? Это действие нельзя отменить.",
+        "Delete this account permanently? This action cannot be undone."
+      ))) return;
+
+      submit.disabled = true;
+      username.disabled = true;
+      password.disabled = true;
+      confirmation.disabled = true;
+      status.hidden = false;
+      status.textContent = authLocalized("ОТПРАВКА ЗАПРОСА...", "SENDING REQUEST...");
+
+      try {
+        const data = await accountDeleteRequest({
+          username: typedUsername,
+          password: password.value,
+          confirmation: "DELETE"
+        });
+        const receipt = String(data.receiptToken || "");
+        if (!receipt) throw new Error("missing_receipt");
+        localStorage.setItem(ACCOUNT_DELETE_RECEIPT_KEY, receipt);
+        clearAuth();
+        location.assign("/delete-account/");
+      } catch (error) {
+        if (String(error?.message || "") === "invalid_session") clearAuth();
+        status.textContent = accountDeleteErrorMessage(error);
+        submit.disabled = false;
+        username.disabled = false;
+        password.disabled = false;
+        confirmation.disabled = false;
+      }
+    });
+
+    return section;
+  }
+
   function createLegalCenter() {
     const section = document.createElement("section");
     section.className = "profile-legal-center";
@@ -3354,7 +3527,7 @@
     logout.addEventListener("click", logoutAccount);
     footer.append(meta, logout);
 
-    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityCenter(), createLegalCenter(), footer);
+    card.append(hero, createAvatarPicker(profile.avatarId), stats, createPromoRedeemCenter(), createSecurityCenter(), createAccountDeleteCenter(), createLegalCenter(), footer);
     return card;
   }
 
