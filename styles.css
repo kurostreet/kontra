@@ -6590,3 +6590,151 @@ body.theme-day .beta-view-back {
 @media (prefers-reduced-motion: reduce) {
   .beta-profile-entry__button::after { animation: none; opacity: .24; left: 42%; }
 }
+
+
+/* KONTRA_BETA_COMPACT_STEPS_v1 */
+.beta-program__tasks {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.beta-program__task {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+}
+
+.beta-program__task-number {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.11);
+  color: rgba(255,255,255,.48);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.beta-program__task-copy {
+  min-width: 0;
+}
+
+.beta-program__task-copy strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.beta-program__task-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.beta-program__task-side {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.beta-program__task-state {
+  white-space: nowrap;
+  color: rgba(255,255,255,.42);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+
+.beta-program__task-button {
+  min-width: 92px;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 9px;
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.62);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+
+.beta-program__task-button:not(:disabled) {
+  cursor: pointer;
+}
+
+.beta-program__task.is-waiting {
+  border-color: rgba(255,196,74,.20);
+  background:
+    linear-gradient(120deg, rgba(255,190,58,.06), rgba(255,255,255,.012));
+}
+
+.beta-program__task.is-waiting .beta-program__task-number,
+.beta-program__task.is-waiting .beta-program__task-state {
+  color: #ffd261;
+}
+
+.beta-program__task.is-waiting .beta-program__task-button:not(:disabled) {
+  border-color: rgba(255,196,74,.32);
+  color: #ffd261;
+  background: rgba(255,190,58,.08);
+}
+
+.beta-program__task.is-done {
+  border-color: rgba(67,216,127,.19);
+  background:
+    linear-gradient(120deg, rgba(67,216,127,.055), rgba(255,255,255,.012));
+}
+
+.beta-program__task.is-done .beta-program__task-number,
+.beta-program__task.is-done .beta-program__task-state {
+  color: #7ceaaa;
+}
+
+.beta-program__task.is-done .beta-program__task-button {
+  border-color: rgba(67,216,127,.22);
+  color: #7ceaaa;
+  background: rgba(67,216,127,.06);
+}
+
+@media (max-width: 520px) {
+  .beta-program__task {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .beta-program__task-side {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: start;
+    margin-top: -2px;
+  }
+
+  .beta-program__task-button {
+    justify-self: end;
+  }
+}
+
+body.theme-day .beta-program__task {
+  border-color: rgba(20,35,50,.10);
+  background: rgba(255,255,255,.68);
+}
+
+body.theme-day .beta-program__task-state {
+  color: rgba(20,35,50,.48);
+}

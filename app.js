@@ -3399,6 +3399,7 @@
     const status = String(value || "none").toLowerCase();
     const labels = {
       none: [authLocalized("НЕ УЧАСТВУЕТ", "NOT ENROLLED"), "is-none"],
+      play_pending: [authLocalized("ЖДЁТ GOOGLE PLAY", "PLAY VERIFICATION"), "is-pending"],
       telegram_pending: [authLocalized("ЖДЁТ TELEGRAM", "TELEGRAM PENDING"), "is-pending"],
       active: [authLocalized("АКТИВНЫЙ ТЕСТЕР", "ACTIVE TESTER"), "is-active"],
       left: [authLocalized("ВЫШЕЛ ИЗ БЕТЫ", "LEFT BETA"), "is-left"],
@@ -3432,6 +3433,23 @@
       beta_pending_request_not_found: authLocalized("Заявка уже обработана. Обновите раздел.", "The request was already processed. Refresh the section."),
       beta_not_banned: authLocalized("Игрок уже разблокирован.", "The player is already unblocked."),
       admin_required: authLocalized("Нужны права ADMIN.", "ADMIN access is required."),
+      beta_temporarily_closed: authLocalized("Набор в Beta Program пока закрыт.", "Beta Program enrollment is currently closed."),
+      google_play_app_required: authLocalized("Для участия установите Kontra Server из Google Play.", "Install Kontra Server from Google Play to participate."),
+      play_integrity_required: authLocalized("Сначала подтвердите приложение через Google Play.", "Verify the app through Google Play first."),
+      beta_rejoin_required: authLocalized("Сначала подайте заявку на повторное вступление.", "Submit a rejoin request first."),
+      beta_rejoin_approval_required: authLocalized("Заявка ожидает решения ADMIN.", "The rejoin request is awaiting ADMIN approval."),
+      play_verification_not_expected: authLocalized("Проверка Google Play сейчас недоступна для этого статуса.", "Google Play verification is not available for this status."),
+      play_challenge_invalid_or_expired: authLocalized("Проверка Google Play устарела. Запустите её снова.", "The Google Play challenge expired. Start verification again."),
+      play_challenge_already_used: authLocalized("Эта проверка уже использована. Запустите новую.", "This challenge was already used. Start a new one."),
+      play_integrity_decode_failed: authLocalized("Google Play не удалось проверить приложение. Попробуйте ещё раз.", "Google Play could not verify the app. Try again."),
+      play_integrity_rejected: authLocalized("Google Play не подтвердил официальную установку приложения.", "Google Play did not confirm an official installation."),
+      invalid_play_verification_request: authLocalized("Некорректные данные проверки Google Play.", "Invalid Google Play verification data."),
+      play_native_unavailable: authLocalized("Откройте Beta Program внутри приложения Kontra Server.", "Open Beta Program inside the Kontra Server app."),
+      play_native_prepare_failed: authLocalized("Не удалось подготовить Google Play Integrity.", "Could not prepare Google Play Integrity."),
+      play_native_not_ready: authLocalized("Google Play Integrity не успел подготовиться. Попробуйте ещё раз.", "Google Play Integrity was not ready in time. Try again."),
+      play_native_token_failed: authLocalized("Не удалось получить подтверждение Google Play.", "Could not obtain Google Play verification."),
+      play_challenge_response_invalid: authLocalized("Worker вернул некорректный запрос Google Play.", "Worker returned an invalid Google Play challenge."),
+      play_token_response_invalid: authLocalized("Google Play вернул некорректное подтверждение.", "Google Play returned an invalid verification token."),
       invalid_session: authLocalized("Сессия истекла. Войдите снова.", "Session expired. Sign in again.")
     };
     return labels[code] || authLocalized("Beta Program временно недоступна.", "Beta Program is temporarily unavailable.");
@@ -3520,6 +3538,240 @@
         return;
       }
       betaProgramState.error = betaErrorText(error);
+    } finally {
+      betaProgramState.action = "";
+      renderAuth();
+    }
+  }
+
+  // KONTRA_BETA_PLAY_INTEGRITY_UI_v1
+  function betaPlayBridge() {
+    const bridge = window.KontraPlayIntegrityNative;
+    if (!bridge || typeof bridge.requestToken !== "function") return null;
+    return bridge;
+  }
+
+  function betaPlayStoreUrl() {
+    return String(
+      config.links?.kontraServerGooglePlay ||
+      "https://play.google.com/apps/internaltest/4701615906218737270"
+    ).trim();
+  }
+
+  function betaOpenPlayStore() {
+    const url = betaPlayStoreUrl();
+    if (!/^https:\/\/play\.google\.com\//i.test(url)) {
+      betaProgramState.error = betaErrorText("play_native_unavailable");
+      renderAuth();
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function betaEnsurePlayIntegrityReady(timeoutMs = 15000) {
+    const bridge = betaPlayBridge();
+    if (!bridge) throw new Error("play_native_unavailable");
+
+    try {
+      if (typeof bridge.isReady === "function" && bridge.isReady()) return true;
+    } catch {}
+
+    return await new Promise((resolve, reject) => {
+      let finished = false;
+
+      const finish = (error = null) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        window.removeEventListener("kontra-play-integrity", onEvent);
+        if (error) reject(error);
+        else resolve(true);
+      };
+
+      const onEvent = (event) => {
+        const detail = event?.detail || {};
+        const type = String(detail.type || "");
+
+        if (type === "ready") {
+          finish();
+          return;
+        }
+
+        if (type === "prepare_error") {
+          const error = new Error("play_native_prepare_failed");
+          error.nativeDetail = String(detail.error || "");
+          finish(error);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        finish(new Error("play_native_not_ready"));
+      }, timeoutMs);
+
+      window.addEventListener("kontra-play-integrity", onEvent);
+
+      try {
+        if (typeof bridge.prepareIntegrity === "function") {
+          bridge.prepareIntegrity();
+        } else {
+          finish(new Error("play_native_prepare_failed"));
+        }
+      } catch {
+        finish(new Error("play_native_prepare_failed"));
+      }
+    });
+  }
+
+  async function betaRequestIntegrityToken(requestHash, requestId, timeoutMs = 30000) {
+    const bridge = betaPlayBridge();
+    if (!bridge) throw new Error("play_native_unavailable");
+
+    return await new Promise((resolve, reject) => {
+      let finished = false;
+
+      const finish = (error = null, token = "") => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        window.removeEventListener("kontra-play-integrity", onEvent);
+        if (error) reject(error);
+        else resolve(token);
+      };
+
+      const onEvent = (event) => {
+        const detail = event?.detail || {};
+        if (String(detail.requestId || "") !== requestId) return;
+
+        const type = String(detail.type || "");
+
+        if (type === "token") {
+          const token = String(detail.token || "").trim();
+          if (token.length < 32) {
+            finish(new Error("play_token_response_invalid"));
+            return;
+          }
+          finish(null, token);
+          return;
+        }
+
+        if (type === "token_error") {
+          const error = new Error("play_native_token_failed");
+          error.nativeDetail = String(detail.error || "");
+          finish(error);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        finish(new Error("play_native_token_failed"));
+      }, timeoutMs);
+
+      window.addEventListener("kontra-play-integrity", onEvent);
+
+      try {
+        bridge.requestToken(requestHash, requestId);
+      } catch {
+        finish(new Error("play_native_token_failed"));
+      }
+    });
+  }
+
+  async function runBetaPlayIntegrity() {
+    if (betaProgramState.action) return;
+
+    if (!betaPlayBridge()) {
+      betaOpenPlayStore();
+      return;
+    }
+
+    betaProgramState.action = "play";
+    betaProgramState.error = "";
+    betaProgramState.messageNotice = authLocalized(
+      "Подготавливаем проверку Google Play…",
+      "Preparing Google Play verification…"
+    );
+    betaProgramState.messageTone = "loading";
+    renderAuth();
+
+    try {
+      await betaEnsurePlayIntegrityReady();
+
+      betaProgramState.messageNotice = authLocalized(
+        "Получаем защищённый запрос Worker…",
+        "Requesting a secure Worker challenge…"
+      );
+      renderAuth();
+
+      const challenge = await betaRequest("/play/challenge", {
+        method: "POST",
+        body: {}
+      });
+
+      betaMergeResponse(challenge);
+
+      if (challenge?.alreadyVerified === true) {
+        betaProgramState.messageNotice = authLocalized(
+          "Google Play уже подтверждён.",
+          "Google Play is already verified."
+        );
+        betaProgramState.messageTone = "success";
+        await fetchBetaProgram(true);
+        return;
+      }
+
+      const challengeId = String(challenge?.challengeId || "").trim();
+      const requestHash = String(challenge?.requestHash || "").trim();
+
+      if (!challengeId || !requestHash) {
+        throw new Error("play_challenge_response_invalid");
+      }
+
+      betaProgramState.messageNotice = authLocalized(
+        "Google Play проверяет официальную установку…",
+        "Google Play is verifying the official installation…"
+      );
+      renderAuth();
+
+      const integrityToken = await betaRequestIntegrityToken(
+        requestHash,
+        challengeId
+      );
+
+      betaProgramState.messageNotice = authLocalized(
+        "Worker проверяет ответ Google Play…",
+        "Worker is validating the Google Play response…"
+      );
+      renderAuth();
+
+      const verified = await betaRequest("/play/verify", {
+        method: "POST",
+        body: {
+          challengeId,
+          integrityToken
+        }
+      });
+
+      betaMergeResponse(verified);
+
+      betaProgramState.messageNotice = authLocalized(
+        "Google Play подтверждён. Теперь подключите Telegram.",
+        "Google Play verified. Now connect Telegram."
+      );
+      betaProgramState.messageTone = "success";
+      toast(betaProgramState.messageNotice);
+
+      await fetchBetaProgram(true);
+
+    } catch (error) {
+      if (["invalid_session", "unauthorized"].includes(String(error?.message || ""))) {
+        clearAuth();
+        setLogin(true);
+        return;
+      }
+
+      betaProgramState.error = betaErrorText(error);
+      betaProgramState.messageNotice = "";
+      betaProgramState.messageTone = "error";
+
     } finally {
       betaProgramState.action = "";
       renderAuth();
@@ -3905,45 +4157,181 @@
     );
     section.append(metrics);
 
+    // KONTRA_BETA_COMPACT_STEPS_v1
     const steps = document.createElement("div");
-    steps.className = "beta-program__steps";
-    steps.append(
-      createBetaStep(1, authLocalized("Вступить", "Join"), authLocalized("Один бесплатный вход; повторное вступление проверяет ADMIN.", "One free entry; rejoining requires ADMIN approval."), ["telegram_pending", "active", "pending_rejoin"].includes(status.status) ? "is-done" : ""),
-      createBetaStep(2, authLocalized("Подтвердить Telegram", "Verify Telegram"), authLocalized("Подключите Telegram через бота. Участие в группе проверяется автоматически.", "Connect Telegram through the bot. Group membership is verified automatically."), tester.telegramVerified ? "is-done" : ""),
-      createBetaStep(3, authLocalized("Получить Google Play сборку", "Get the Google Play build"), authLocalized("Официальная closed-testing ссылка появится после публикации набора.", "The official closed-testing link will appear after the track is published."), status.status === "active" ? "is-ready" : "")
-    );
-    const telegram = document.createElement("a");
-    telegram.className = "beta-program__external";
-    telegram.href = "#";
-    telegram.rel = "noopener noreferrer";
-    if (tester.telegramVerified || status.status === "active") {
-      telegram.textContent = authLocalized("TELEGRAM ПОДТВЕРЖДЁН ✓", "TELEGRAM VERIFIED ✓");
-      telegram.setAttribute("aria-disabled", "true");
-      telegram.addEventListener("click", (event) => event.preventDefault());
-    } else if (status.status === "telegram_pending") {
-      telegram.textContent = betaProgramState.action === "telegram"
-        ? authLocalized("ПОДКЛЮЧАЕМ TELEGRAM…", "CONNECTING TELEGRAM…")
-        : authLocalized("ПОДКЛЮЧИТЬ TELEGRAM ↗", "CONNECT TELEGRAM ↗");
-      telegram.addEventListener("click", (event) => {
-        event.preventDefault();
-        void connectBetaTelegram();
-      });
+    steps.className = "beta-program__tasks";
+
+    const makeTask = ({
+      number,
+      title,
+      text,
+      state = "locked",
+      statusText,
+      buttonText,
+      onClick = null
+    }) => {
+      const item = document.createElement("div");
+      item.className = "beta-program__task is-" + state;
+
+      const numberEl = document.createElement("span");
+      numberEl.className = "beta-program__task-number";
+      numberEl.textContent = String(number).padStart(2, "0");
+
+      const copy = document.createElement("div");
+      copy.className = "beta-program__task-copy";
+
+      const taskTitle = document.createElement("strong");
+      taskTitle.textContent = title;
+
+      const taskText = document.createElement("p");
+      taskText.textContent = text;
+
+      copy.append(taskTitle, taskText);
+
+      const side = document.createElement("div");
+      side.className = "beta-program__task-side";
+
+      const stateEl = document.createElement("span");
+      stateEl.className = "beta-program__task-state";
+      stateEl.textContent = statusText;
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "beta-program__task-button";
+      button.textContent = buttonText;
+      button.disabled = !onClick || Boolean(betaProgramState.action);
+
+      if (onClick) button.addEventListener("click", onClick);
+
+      side.append(stateEl, button);
+      item.append(numberEl, copy, side);
+      return item;
+    };
+
+    const playVerified =
+      tester.playVerified === true ||
+      status.status === "telegram_pending" ||
+      status.status === "active";
+
+    const playBridgeAvailable = Boolean(betaPlayBridge());
+
+    const playCanVerify =
+      !playVerified &&
+      playBridgeAvailable &&
+      ["none", "play_pending"].includes(status.status);
+
+    const playNeedsApp =
+      !playVerified &&
+      !playBridgeAvailable &&
+      ["none", "play_pending"].includes(status.status);
+
+    const playActionRunning = betaProgramState.action === "play";
+
+    let playState = "locked";
+    let playStateText = authLocalized("● НЕ ВЫПОЛНЕНО", "● NOT COMPLETED");
+    let playButtonText = authLocalized("НЕДОСТУПНО", "LOCKED");
+    let playClick = null;
+
+    if (playVerified) {
+      playState = "done";
+      playStateText = authLocalized("● ВЫПОЛНЕНО", "● COMPLETED");
+      playButtonText = authLocalized("ГОТОВО ✓", "DONE ✓");
+    } else if (playCanVerify) {
+      playState = "waiting";
+      playStateText = playActionRunning
+        ? authLocalized("● ПРОВЕРКА…", "● VERIFYING…")
+        : authLocalized("● ГОТОВО К ПРОВЕРКЕ", "● READY");
+      playButtonText = playActionRunning
+        ? authLocalized("ПРОВЕРЯЕМ…", "VERIFYING…")
+        : authLocalized("ПРОВЕРИТЬ", "VERIFY");
+      playClick = () => void runBetaPlayIntegrity();
+    } else if (playNeedsApp) {
+      playStateText = status.status === "play_pending"
+        ? authLocalized("● ОТКРОЙТЕ В ПРИЛОЖЕНИИ", "● OPEN IN APP")
+        : authLocalized("● ТРЕБУЕТСЯ ПРИЛОЖЕНИЕ", "● APP REQUIRED");
+      playButtonText = "GOOGLE PLAY ↗";
+      playClick = () => betaOpenPlayStore();
     } else if (status.status === "pending_rejoin") {
-      telegram.textContent = authLocalized("TELEGRAM ПОСЛЕ ОДОБРЕНИЯ ADMIN", "TELEGRAM AFTER ADMIN APPROVAL");
-      telegram.setAttribute("aria-disabled", "true");
-      telegram.addEventListener("click", (event) => event.preventDefault());
-    } else {
-      telegram.textContent = authLocalized("СНАЧАЛА ВСТУПИТЕ В BETA", "JOIN BETA FIRST");
-      telegram.setAttribute("aria-disabled", "true");
-      telegram.addEventListener("click", (event) => event.preventDefault());
+      playStateText = authLocalized("● ЖДЁТ ADMIN", "● WAITING FOR ADMIN");
+      playButtonText = authLocalized("ОЖИДАНИЕ", "WAITING");
+    } else if (status.status === "left" || status.status === "rejected") {
+      playStateText = authLocalized("● НУЖНА ЗАЯВКА", "● REJOIN REQUIRED");
+      playButtonText = authLocalized("СНАЧАЛА ЗАЯВКА", "REJOIN FIRST");
     }
-    const play = document.createElement("a");
-    play.className = "beta-program__external";
-    play.href = String(config.links?.googlePlay || "#");
-    play.target = "_blank";
-    play.rel = "noopener noreferrer";
-    play.textContent = "GOOGLE PLAY ↗";
-    steps.append(telegram, play);
+
+    steps.append(
+      makeTask({
+        number: 1,
+        title: "GOOGLE PLAY",
+        text: playBridgeAvailable
+          ? authLocalized(
+              "Проверка официальной установки Kontra Server.",
+              "Verify the official Kontra Server installation."
+            )
+          : authLocalized(
+              "Для участия требуется Kontra Server из Google Play.",
+              "Kontra Server from Google Play is required."
+            ),
+        state: playState,
+        statusText: playStateText,
+        buttonText: playButtonText,
+        onClick: playClick
+      })
+    );
+
+    const telegramReady =
+      playVerified && status.status === "telegram_pending";
+
+    const telegramDone =
+      tester.telegramVerified === true || status.status === "active";
+
+    steps.append(
+      makeTask({
+        number: 2,
+        title: "TELEGRAM",
+        text: authLocalized(
+          "Привяжите аккаунт и вступите в группу тестеров.",
+          "Link your account and join the tester group."
+        ),
+        state: telegramDone ? "done" : (telegramReady ? "waiting" : "locked"),
+        statusText: telegramDone
+          ? authLocalized("● ВЫПОЛНЕНО", "● COMPLETED")
+          : telegramReady
+            ? authLocalized("● ДОСТУПНО", "● AVAILABLE")
+            : authLocalized("● ЗАБЛОКИРОВАНО", "● LOCKED"),
+        buttonText: telegramDone
+          ? authLocalized("ГОТОВО ✓", "DONE ✓")
+          : telegramReady
+            ? (betaProgramState.action === "telegram"
+              ? authLocalized("ПОДКЛЮЧАЕМ…", "CONNECTING…")
+              : authLocalized("ПОДКЛЮЧИТЬ", "CONNECT"))
+            : authLocalized("НЕДОСТУПНО", "LOCKED"),
+        onClick: telegramReady
+          ? () => void connectBetaTelegram()
+          : null
+      })
+    );
+
+    const testerActive = status.status === "active";
+
+    steps.append(
+      makeTask({
+        number: 3,
+        title: "TESTER",
+        text: authLocalized(
+          "Статус включится автоматически после двух проверок.",
+          "Status activates automatically after both checks."
+        ),
+        state: testerActive ? "done" : "locked",
+        statusText: testerActive
+          ? authLocalized("● АКТИВЕН", "● ACTIVE")
+          : authLocalized("● НЕ АКТИВЕН", "● INACTIVE"),
+        buttonText: testerActive
+          ? "TESTER ✓"
+          : authLocalized("АВТО", "AUTO")
+      })
+    );
+
     section.append(steps);
 
     if (status.status !== "none" && (tester.gameSyncPending || tester.playStatus === "pending" || tester.gameSyncError)) {
@@ -3979,7 +4367,7 @@
 
     const actions = document.createElement("div");
     actions.className = "beta-program__actions";
-    if (["none", "left", "rejected"].includes(status.status)) {
+    if (["left", "rejected"].includes(status.status)) {
       const terms = document.createElement("label");
       terms.className = "beta-program__terms";
       const checkbox = document.createElement("input");
@@ -3988,7 +4376,7 @@
       checkbox.disabled = Boolean(betaProgramState.action);
       checkbox.addEventListener("change", () => {
         betaProgramState.termsAccepted = checkbox.checked;
-        join.disabled = false;
+        join.disabled = !checkbox.checked || Boolean(betaProgramState.action);
       });
       const text = document.createElement("span");
       text.textContent = authLocalized(
@@ -3999,15 +4387,22 @@
       const join = document.createElement("button");
       join.type = "button";
       join.className = "primary-button";
-      join.textContent = tester.everActivated
-        ? authLocalized("ПОДАТЬ ЗАЯВКУ СНОВА", "REQUEST REJOIN")
-        : authLocalized("ВСТУПИТЬ", "JOIN BETA");
-      join.disabled = false;
+      join.textContent = authLocalized(
+        "ПОДАТЬ ЗАЯВКУ СНОВА",
+        "REQUEST REJOIN"
+      );
+      join.disabled = !betaProgramState.termsAccepted || Boolean(betaProgramState.action);
       join.addEventListener("click", () => {
-        window.alert(authLocalized(
-          "🚧 В разработке!\nСкоро заработает!",
-          "🚧 In development!\nComing soon!"
-        ));
+        if (!betaProgramState.termsAccepted) return;
+        void runBetaAction(
+          "join",
+          "/join",
+          { acceptRules: true, telegramRequired: true },
+          authLocalized(
+            "Заявка на повторное вступление отправлена.",
+            "Rejoin request submitted."
+          )
+        );
       });
       actions.append(terms, join);
     }
