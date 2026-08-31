@@ -5125,31 +5125,78 @@
     const panel = $("#promoSeasonPanel");
     const grid = $("#promoSeasonGrid");
     if (!panel || !grid) return;
-    const promos = Array.isArray(promoSeasonState.promos) ? promoSeasonState.promos : [];
+
+    const promos = Array.isArray(promoSeasonState.promos)
+      ? promoSeasonState.promos
+      : [];
+
     panel.hidden = promos.length === 0;
     grid.replaceChildren();
+
     if (!promos.length) return;
+
     promos.forEach((promo, index) => {
-      const card = document.createElement("article");
-      card.className = `promo-season-card ${promo.kind === "lvl" ? "is-lvl" : "is-tokens"}`;
-      card.style.setProperty("--promo-delay", `${Math.min(index, 7) * 45}ms`);
+      const row = document.createElement("div");
+      row.className =
+        "promo-season-row " +
+        (promo.kind === "lvl" ? "is-lvl" : "is-tokens");
+
+      row.style.setProperty(
+        "--promo-delay",
+        `${Math.min(index, 7) * 40}ms`
+      );
+
+      const code = document.createElement("strong");
+      code.className = "promo-season-row__code";
+      code.textContent = promo.word;
+
+      const reward = document.createElement("span");
+      reward.className = "promo-season-row__reward";
+      reward.textContent = promoRewardLabel(promo);
+
       const copy = document.createElement("button");
       copy.type = "button";
-      copy.className = "promo-season-card__copy";
-      copy.setAttribute("aria-label", `${t("promoCopy")}: ${promo.word}`);
-      copy.innerHTML = `<span>${escapePromoText(promo.word)}</span><small>${t("promoCopy")}</small>`;
+      copy.className = "promo-season-row__copy";
+      copy.textContent = t("promoCopy");
+      copy.setAttribute(
+        "aria-label",
+        `${t("promoCopy")}: ${promo.word}`
+      );
+
       copy.addEventListener("click", async () => {
         const copied = await copyText(promo.word);
-        toast(copied ? `${t("promoCopied")}: ${promo.word}` : t("copyFailed"));
+
+        if (!copied) {
+          toast(t("copyFailed"));
+          return;
+        }
+
+        const normal = t("promoCopy");
+        copy.textContent =
+          language === "ru"
+            ? "СКОПИРОВАНО ✓"
+            : "COPIED ✓";
+
+        copy.classList.add("is-copied");
+
+        toast(`${t("promoCopied")}: ${promo.word}`);
+
+        window.setTimeout(() => {
+          copy.textContent = normal;
+          copy.classList.remove("is-copied");
+        }, 1600);
       });
-      const reward = document.createElement("div");
-      reward.className = "promo-season-card__reward";
-      reward.innerHTML = `<span>${promo.kind === "lvl" ? "LVL" : "TK"}</span><strong>${promoRewardLabel(promo)}</strong>`;
-      card.append(copy, reward);
-      grid.append(card);
+
+      row.append(code, reward, copy);
+      grid.append(row);
     });
+
     const updated = $("#promoUpdatedAt");
-    if (updated) updated.textContent = promoSeasonState.updatedAt ? formatAge(promoSeasonState.updatedAt) : "—";
+    if (updated) {
+      updated.textContent = promoSeasonState.updatedAt
+        ? formatAge(promoSeasonState.updatedAt)
+        : "—";
+    }
   }
 
   async function fetchSeasonPromos() {

@@ -6738,3 +6738,143 @@ body.theme-day .beta-program__task {
 body.theme-day .beta-program__task-state {
   color: rgba(20,35,50,.48);
 }
+
+
+/* KONTRA_HOME_COMPACT_PROMOS_v1 */
+.promo-season-panel {
+  margin: 14px 0 20px;
+  padding: 15px 16px 13px;
+}
+
+.promo-season-panel__head {
+  align-items: center;
+  margin-bottom: 11px;
+}
+
+.promo-season-panel__eyebrow {
+  margin-bottom: 4px;
+}
+
+.promo-season-panel__head h2 {
+  font-size: clamp(16px,4.4vw,21px);
+}
+
+.promo-season-panel__head p {
+  margin-top: 5px;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.promo-season-panel__badge {
+  flex-basis: 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 17px;
+}
+
+.promo-season-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255,214,74,.12);
+  border-radius: 13px;
+  background: rgba(4,7,5,.34);
+}
+
+.promo-season-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 9px 11px;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+  animation: promoCardIn .3s ease both;
+  animation-delay: var(--promo-delay,0ms);
+}
+
+.promo-season-row:last-child {
+  border-bottom: 0;
+}
+
+.promo-season-row__code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #f4f7ef;
+  font: 900 13px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing: .035em;
+}
+
+.promo-season-row__reward {
+  white-space: nowrap;
+  font: 900 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing: .025em;
+}
+
+.promo-season-row.is-lvl .promo-season-row__reward {
+  color: #63cdfa;
+}
+
+.promo-season-row.is-tokens .promo-season-row__reward {
+  color: var(--yellow);
+}
+
+.promo-season-row__copy {
+  min-width: 82px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+  color: #717971;
+  font: 800 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing: .07em;
+  cursor: pointer;
+}
+
+.promo-season-row__copy:active {
+  transform: scale(.97);
+}
+
+.promo-season-row__copy.is-copied {
+  color: #7ceaaa;
+  border-color: rgba(67,216,127,.22);
+  background: rgba(67,216,127,.055);
+}
+
+.promo-season-panel__updated {
+  margin-top: 9px;
+}
+
+body.theme-day .promo-season-grid {
+  background: rgba(255,255,255,.42);
+}
+
+body.theme-day .promo-season-row__code {
+  color: #20251f;
+}
+
+@media (max-width:520px) {
+  .promo-season-panel {
+    padding: 14px;
+  }
+
+  .promo-season-row {
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 5px 9px;
+    min-height: 55px;
+  }
+
+  .promo-season-row__copy {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .promo-season-row__reward {
+    grid-column: 1;
+    font-size: 9px;
+  }
+}

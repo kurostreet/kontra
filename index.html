@@ -7,12 +7,12 @@
   <meta name="description" content="KONTRA // SURVIVAL — live server dashboard and player portal.">
   <title>KONTRA // SURVIVAL</title>
   <link rel="icon" href="assets/kontra-zombie-logo.webp" type="image/webp">
-  <link rel="stylesheet" href="styles.css?v=v47-beta-play-integrity">
+  <link rel="stylesheet" href="styles.css?v=v48-home-compact">
   <script src="site-updater.js?v=webview-auto-update-v1" defer></script>
   <script src="config.js?v=webview-auto-update-v1"></script>
-  <script src="app.js?v=v47-beta-play-integrity" defer></script>
+  <script src="app.js?v=v48-home-compact" defer></script>
 </head>
-<body data-build="v47-beta-play-integrity">
+<body data-build="v48-home-compact">
   <div class="ambient ambient--one" aria-hidden="true"></div>
   <div class="ambient ambient--two" aria-hidden="true"></div>
 
@@ -112,19 +112,6 @@
           <article><span class="quick-icon quick-icon--violet">▥</span><strong data-fill>0%</strong><small data-i18n="capacity">CAPACITY</small></article>
         </div>
 
-        <article class="promo-season-panel" id="promoSeasonPanel" hidden>
-          <header class="promo-season-panel__head">
-            <div>
-              <span class="promo-season-panel__eyebrow" data-i18n="seasonPromosEyebrow">SEASON BONUS</span>
-              <h2 data-i18n="seasonPromosTitle">NEW SEASON PROMO CODES</h2>
-              <p data-i18n="seasonPromosLead">Enter the code in the in-game chat and collect the reward.</p>
-            </div>
-            <span class="promo-season-panel__badge" aria-hidden="true">%</span>
-          </header>
-          <div class="promo-season-grid" id="promoSeasonGrid"></div>
-          <div class="promo-season-panel__updated"><span data-i18n="promoSynced">SYNCED WITH SERVER</span><b id="promoUpdatedAt">—</b></div>
-        </article>
-
         <article class="panel players-preview">
           <header class="panel__header">
             <div><span class="panel-icon">♙</span><strong data-i18n="playersOnServer">PLAYERS ON SERVER</strong></div>
@@ -139,10 +126,19 @@
           <button class="panel-action" type="button" data-nav="server"><span data-i18n="fullScoreboard">FULL SCOREBOARD</span><b>›</b></button>
         </article>
 
-        <article class="panel profile-preview">
-          <header class="panel__header"><div><span class="panel-icon">◎</span><strong data-i18n="yourStats">YOUR STATISTICS</strong></div></header>
-          <div id="homeProfileBody"></div>
+        <article class="promo-season-panel" id="promoSeasonPanel" hidden>
+          <header class="promo-season-panel__head">
+            <div>
+              <span class="promo-season-panel__eyebrow" data-i18n="seasonPromosEyebrow">SEASON BONUS</span>
+              <h2 data-i18n="seasonPromosTitle">NEW SEASON PROMO CODES</h2>
+              <p data-i18n="seasonPromosLead">Enter the code in the in-game chat and collect the reward.</p>
+            </div>
+            <span class="promo-season-panel__badge" aria-hidden="true">%</span>
+          </header>
+          <div class="promo-season-grid" id="promoSeasonGrid"></div>
+          <div class="promo-season-panel__updated"><span data-i18n="promoSynced">SYNCED WITH SERVER</span><b id="promoUpdatedAt">—</b></div>
         </article>
+
       </section>
 
       <section class="view" data-view="server">
