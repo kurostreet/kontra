@@ -6461,3 +6461,132 @@ body.theme-day .beta-program__message textarea {
   .beta-program__metrics { grid-template-columns: 1fr; }
   .beta-program__progress > div:first-child { align-items: flex-start; flex-direction: column; }
 }
+
+
+/* KONTRA_PROFILE_BETA_ENTRY_v46 */
+.beta-profile-entry {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 4px;
+  text-align: center;
+}
+.beta-profile-entry__button {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 68px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 211, 92, .82);
+  border-radius: 18px;
+  padding: 15px 56px 15px 22px;
+  color: #fff1a8;
+  background:
+    linear-gradient(180deg, rgba(255, 214, 83, .14), rgba(255, 176, 0, .045)),
+    linear-gradient(105deg, #241604 0%, #553603 38%, #2b1903 68%, #150d02 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.06),
+    inset 0 0 24px rgba(255, 192, 44, .11),
+    0 0 0 1px rgba(255, 171, 0, .12),
+    0 8px 26px rgba(214, 144, 0, .12),
+    0 0 22px rgba(255, 187, 32, .08);
+  cursor: pointer;
+  transform: translateZ(0);
+}
+.beta-profile-entry__button::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  z-index: -1;
+  border: 1px solid rgba(255, 222, 125, .18);
+  border-radius: 13px;
+  pointer-events: none;
+}
+.beta-profile-entry__button::after {
+  content: "";
+  position: absolute;
+  top: -35%;
+  left: -32%;
+  width: 22%;
+  height: 170%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.82), rgba(255,233,163,.32), transparent);
+  filter: blur(.3px);
+  transform: skewX(-22deg);
+  animation: betaGoldSweep 3.2s cubic-bezier(.42,0,.58,1) infinite;
+  pointer-events: none;
+}
+.beta-profile-entry__button strong {
+  position: relative;
+  z-index: 1;
+  display: block;
+  font-size: clamp(18px, 4.5vw, 25px);
+  line-height: 1.05;
+  letter-spacing: .055em;
+  text-shadow: 0 0 12px rgba(255, 209, 85, .32);
+}
+.beta-profile-entry__arrow {
+  position: absolute;
+  top: 50%;
+  right: 22px;
+  z-index: 1;
+  translate: 0 -52%;
+  font-size: 36px;
+  font-weight: 300;
+  color: #ffd96a;
+  text-shadow: 0 0 12px rgba(255, 196, 36, .45);
+  transition: transform .2s ease;
+}
+.beta-profile-entry__button:active {
+  transform: scale(.988);
+}
+.beta-profile-entry__button:active .beta-profile-entry__arrow {
+  transform: translateX(3px);
+}
+.beta-profile-entry > small {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .035em;
+}
+@keyframes betaGoldSweep {
+  0%, 22% { left: -32%; opacity: 0; }
+  30% { opacity: 1; }
+  58% { left: 118%; opacity: .9; }
+  66%, 100% { left: 118%; opacity: 0; }
+}
+.beta-hub-view {
+  padding-bottom: 26px;
+}
+.beta-view-shell {
+  display: grid;
+  gap: 12px;
+}
+.beta-view-back {
+  justify-self: start;
+  border: 1px solid rgba(111, 152, 255, .22);
+  border-radius: 12px;
+  padding: 10px 13px;
+  color: #aebfe9;
+  background: rgba(13, 20, 42, .72);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.beta-view-back:active {
+  transform: translateY(1px);
+}
+body.theme-day .beta-profile-entry__button {
+  color: #6a4300;
+  background:
+    linear-gradient(180deg, rgba(255, 224, 118, .76), rgba(225, 155, 13, .32)),
+    #f7d67a;
+  border-color: rgba(166, 106, 0, .58);
+  text-shadow: none;
+}
+body.theme-day .beta-view-back {
+  color: #32456d;
+  background: rgba(255,255,255,.82);
+}
+@media (prefers-reduced-motion: reduce) {
+  .beta-profile-entry__button::after { animation: none; opacity: .24; left: 42%; }
+}

@@ -4353,6 +4353,50 @@
   }
 
   // KONTRA_CONTROL_TO_LVLHUB_PROFILE_TOOLS_v1
+  function createBetaProfileEntry() {
+    const section = document.createElement("section");
+    section.className = "beta-profile-entry";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "beta-profile-entry__button";
+    button.setAttribute("aria-label", authLocalized("Участвовать в бета-тестировании", "Participate in beta testing"));
+
+    const label = document.createElement("strong");
+    label.textContent = authLocalized("УЧАСТВОВАТЬ В БЕТА", "PARTICIPATE IN BETA");
+
+    const arrow = document.createElement("span");
+    arrow.className = "beta-profile-entry__arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "›";
+
+    button.append(label, arrow);
+    button.addEventListener("click", () => showView("beta"));
+
+    const caption = document.createElement("small");
+    caption.textContent = authLocalized(
+      "Открыть раздел бета-тестирования",
+      "Open the beta testing section"
+    );
+
+    section.append(button, caption);
+    return section;
+  }
+
+  function createBetaView() {
+    const shell = document.createElement("div");
+    shell.className = "beta-view-shell";
+
+    const back = document.createElement("button");
+    back.type = "button";
+    back.className = "beta-view-back";
+    back.textContent = authLocalized("← НАЗАД В ПРОФИЛЬ", "← BACK TO PROFILE");
+    back.addEventListener("click", () => showView("profile"));
+
+    shell.append(back, createBetaProgramCenter());
+    return shell;
+  }
+
   function createProfileQuickTools() {
     const section = document.createElement("section");
     section.className = "profile-quick-tools";
@@ -4473,7 +4517,7 @@
     logout.addEventListener("click", logoutAccount);
     footer.append(meta, logout);
 
-    card.append(hero, createAvatarPicker(profile.avatarId), stats, createBetaProgramCenter(), createPromoRedeemCenter(), createProfileQuickTools(), createSecurityShortcut(), footer);
+    card.append(hero, createAvatarPicker(profile.avatarId), stats, createBetaProfileEntry(), createPromoRedeemCenter(), createProfileQuickTools(), createSecurityShortcut(), footer);
     return card;
   }
 
@@ -4486,9 +4530,11 @@
     syncAdminOnlyControls();
     const home = $("#homeProfileBody");
     const page = $("#profilePageBody");
+    const betaPage = $("#betaPageBody");
     const securityPage = $("#securityPageBody");
     if (home) home.replaceChildren(authState.account && authState.profile ? createCompactProfile() : createLockedProfile(true));
     if (page) page.replaceChildren(authState.account && authState.profile ? createFullProfile() : createLockedProfile(false));
+    if (betaPage) betaPage.replaceChildren(authState.account && authState.profile ? createBetaView() : createLockedProfile(false));
     if (securityPage) securityPage.replaceChildren(authState.account && authState.profile ? createSecurityHub() : createLockedProfile(false));
 
     const drawerTitle = $("#drawerAccountTitle");
@@ -5630,7 +5676,7 @@
     $$('[data-view]').forEach((view) => view.classList.toggle("is-active", view.dataset.view === name));
     const securityHeading = $("#securityHubHeading");
     if (securityHeading) securityHeading.textContent = authLocalized("БЕЗОПАСНОСТЬ", "SECURITY");
-    const navName = name === "lvlhub" ? "control" : (name === "security" ? "profile" : name);
+    const navName = name === "lvlhub" ? "control" : ((name === "security" || name === "beta") ? "profile" : name);
     $$('.bottom-nav [data-nav]').forEach((button) => {
       const active = button.dataset.nav === navName;
       button.classList.toggle("is-active", active);
@@ -5644,7 +5690,7 @@
       else if (seasonArchiveState.mode === "seasons") fetchSeasonList(false);
       else void preparePlayerComparison();
     }
-    if (name === "profile" && authState.sessionToken) void fetchBetaProgram(false);
+    if ((name === "profile" || name === "beta") && authState.sessionToken) void fetchBetaProgram(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
