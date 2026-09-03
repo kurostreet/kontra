@@ -32,6 +32,7 @@ window.KONTRA_CONFIG = {
   links: {
     appStore: "https://apps.apple.com/ru/app/kontra-zombie-survival/id1660215198",
     googlePlay: "https://play.google.com/store/apps/details?id=com.gameplier.kontra",
+    kontraServerGooglePlay: "https://play.google.com/apps/testing/ru.kontrafps.app",
     kontraServerApk: "https://2d88cda2.nip.io/download/Kontra-Server.apk",
     developer: "https://kontramobile.com/#/",
     telegram: "https://t.me/kontra_fps_ru",
