@@ -3448,6 +3448,8 @@
       play_native_prepare_failed: authLocalized("Не удалось подготовить Google Play Integrity.", "Could not prepare Google Play Integrity."),
       play_native_not_ready: authLocalized("Google Play Integrity не успел подготовиться. Попробуйте ещё раз.", "Google Play Integrity was not ready in time. Try again."),
       play_native_token_failed: authLocalized("Не удалось получить подтверждение Google Play.", "Could not obtain Google Play verification."),
+      play_license_dialog_unavailable: authLocalized("Обновите Kontra Server через Google Play для продолжения.", "Update Kontra Server through Google Play to continue."),
+      play_license_dialog_failed: authLocalized("Не удалось обновить лицензию Google Play.", "Could not refresh the Google Play license."),
       play_challenge_response_invalid: authLocalized("Worker вернул некорректный запрос Google Play.", "Worker returned an invalid Google Play challenge."),
       play_token_response_invalid: authLocalized("Google Play вернул некорректное подтверждение.", "Google Play returned an invalid verification token."),
       invalid_session: authLocalized("Сессия истекла. Войдите снова.", "Session expired. Sign in again.")
@@ -3675,8 +3677,62 @@
     });
   }
 
-  async function runBetaPlayIntegrity() {
+  async function betaShowGetLicensedDialog(timeoutMs = 120000) {
+    const bridge = betaPlayBridge();
+    if (!bridge || typeof bridge.showGetLicensedDialog !== "function") {
+      throw new Error("play_license_dialog_unavailable");
+    }
+
+    const requestId =
+      "license-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+
+    return await new Promise((resolve, reject) => {
+      let finished = false;
+
+      const finish = (error = null) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        window.removeEventListener("kontra-play-integrity", onEvent);
+        if (error) reject(error);
+        else resolve(true);
+      };
+
+      const onEvent = (event) => {
+        const detail = event?.detail || {};
+        if (String(detail.requestId || "") !== requestId) return;
+
+        const type = String(detail.type || "");
+
+        if (type === "license_dialog_closed") {
+          finish();
+          return;
+        }
+
+        if (type === "license_dialog_error") {
+          const error = new Error("play_license_dialog_failed");
+          error.nativeDetail = String(detail.error || "");
+          finish(error);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        finish(new Error("play_license_dialog_failed"));
+      }, timeoutMs);
+
+      window.addEventListener("kontra-play-integrity", onEvent);
+
+      try {
+        bridge.showGetLicensedDialog(requestId);
+      } catch {
+        finish(new Error("play_license_dialog_failed"));
+      }
+    });
+  }
+
+  async function runBetaPlayIntegrity(remediationRetry = false) {
     if (betaProgramState.action) return;
+    let retryAfterLicenseDialog = false;
 
     if (!betaPlayBridge()) {
       betaOpenPlayStore();
@@ -3768,13 +3824,47 @@
         return;
       }
 
-      betaProgramState.error = betaErrorText(error);
-      betaProgramState.messageNotice = "";
-      betaProgramState.messageTone = "error";
+      const isUnlicensed =
+        String(error?.message || "") === "play_integrity_rejected" &&
+        String(error?.payload?.reason || "") === "license_UNLICENSED";
+
+      if (isUnlicensed && !remediationRetry) {
+        try {
+          betaProgramState.error = "";
+          betaProgramState.messageNotice = authLocalized(
+            "Google Play требует подтверждение лицензии…",
+            "Google Play requires license confirmation…"
+          );
+          betaProgramState.messageTone = "loading";
+          renderAuth();
+
+          await betaShowGetLicensedDialog();
+
+          betaProgramState.messageNotice = authLocalized(
+            "Лицензия обновлена. Повторяем проверку…",
+            "License updated. Verifying again…"
+          );
+          betaProgramState.messageTone = "loading";
+          retryAfterLicenseDialog = true;
+
+        } catch (dialogError) {
+          betaProgramState.error = betaErrorText(dialogError);
+          betaProgramState.messageNotice = "";
+          betaProgramState.messageTone = "error";
+        }
+      } else {
+        betaProgramState.error = betaErrorText(error);
+        betaProgramState.messageNotice = "";
+        betaProgramState.messageTone = "error";
+      }
 
     } finally {
       betaProgramState.action = "";
       renderAuth();
+
+      if (retryAfterLicenseDialog) {
+        setTimeout(() => runBetaPlayIntegrity(true), 250);
+      }
     }
   }
 
