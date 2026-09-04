@@ -3553,6 +3553,28 @@
     return bridge;
   }
 
+  function betaGroupUrl() {
+    return String(
+      config.links?.kontraServerBetaGroup ||
+      "https://groups.google.com/g/kontra-server-closed-beta"
+    ).trim();
+  }
+
+  function betaOpenGroup() {
+    const url = betaGroupUrl();
+
+    if (!url.toLowerCase().startsWith("https://groups.google.com/")) {
+      betaProgramState.error = authLocalized(
+        "Некорректная ссылка Google Group.",
+        "Invalid Google Group link."
+      );
+      renderAuth();
+      return;
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   function betaPlayStoreUrl() {
     return String(
       config.links?.kontraServerGooglePlay ||
@@ -4316,6 +4338,7 @@
       ["none", "play_pending"].includes(status.status);
 
     const playActionRunning = betaProgramState.action === "play";
+    const showGroupStep = playNeedsApp;
 
     let playState = "locked";
     let playStateText = authLocalized("● НЕ ВЫПОЛНЕНО", "● NOT COMPLETED");
@@ -4349,9 +4372,26 @@
       playButtonText = authLocalized("СНАЧАЛА ЗАЯВКА", "REJOIN FIRST");
     }
 
+    if (showGroupStep) {
+      steps.append(
+        makeTask({
+          number: 1,
+          title: "GOOGLE GROUP",
+          text: authLocalized(
+            "Сначала вступите в группу тестеров этим же Google-аккаунтом.",
+            "First join the tester group with the same Google account."
+          ),
+          state: "waiting",
+          statusText: authLocalized("● ШАГ 1", "● STEP 1"),
+          buttonText: authLocalized("ВСТУПИТЬ ↗", "JOIN ↗"),
+          onClick: () => betaOpenGroup()
+        })
+      );
+    }
+
     steps.append(
       makeTask({
-        number: 1,
+        number: showGroupStep ? 2 : 1,
         title: "GOOGLE PLAY",
         text: playBridgeAvailable
           ? authLocalized(
@@ -4359,8 +4399,8 @@
               "Verify the official Kontra Server installation."
             )
           : authLocalized(
-              "Для участия требуется Kontra Server из Google Play.",
-              "Kontra Server from Google Play is required."
+              "Затем вступите в закрытое тестирование и установите Kontra Server из Google Play.",
+              "Then join Closed Alpha and install Kontra Server from Google Play."
             ),
         state: playState,
         statusText: playStateText,
@@ -4373,7 +4413,7 @@
 
     steps.append(
       makeTask({
-        number: 2,
+        number: showGroupStep ? 3 : 2,
         title: "TESTER",
         text: authLocalized(
           "Статус включится автоматически после проверки Google Play.",
