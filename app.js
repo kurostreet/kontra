@@ -3809,8 +3809,8 @@
       betaMergeResponse(verified);
 
       betaProgramState.messageNotice = authLocalized(
-        "Google Play подтверждён. Теперь подключите Telegram.",
-        "Google Play verified. Now connect Telegram."
+        "Google Play подтверждён. Статус TESTER активирован.",
+        "Google Play verified. TESTER status activated."
       );
       betaProgramState.messageTone = "success";
       toast(betaProgramState.messageNotice);
@@ -4369,48 +4369,15 @@
       })
     );
 
-    const telegramReady =
-      playVerified && status.status === "telegram_pending";
-
-    const telegramDone =
-      tester.telegramVerified === true || status.status === "active";
-
-    steps.append(
-      makeTask({
-        number: 2,
-        title: "TELEGRAM",
-        text: authLocalized(
-          "Привяжите аккаунт и вступите в группу тестеров.",
-          "Link your account and join the tester group."
-        ),
-        state: telegramDone ? "done" : (telegramReady ? "waiting" : "locked"),
-        statusText: telegramDone
-          ? authLocalized("● ВЫПОЛНЕНО", "● COMPLETED")
-          : telegramReady
-            ? authLocalized("● ДОСТУПНО", "● AVAILABLE")
-            : authLocalized("● ЗАБЛОКИРОВАНО", "● LOCKED"),
-        buttonText: telegramDone
-          ? authLocalized("ГОТОВО ✓", "DONE ✓")
-          : telegramReady
-            ? (betaProgramState.action === "telegram"
-              ? authLocalized("ПОДКЛЮЧАЕМ…", "CONNECTING…")
-              : authLocalized("ПОДКЛЮЧИТЬ", "CONNECT"))
-            : authLocalized("НЕДОСТУПНО", "LOCKED"),
-        onClick: telegramReady
-          ? () => void connectBetaTelegram()
-          : null
-      })
-    );
-
     const testerActive = status.status === "active";
 
     steps.append(
       makeTask({
-        number: 3,
+        number: 2,
         title: "TESTER",
         text: authLocalized(
-          "Статус включится автоматически после двух проверок.",
-          "Status activates automatically after both checks."
+          "Статус включится автоматически после проверки Google Play.",
+          "Status activates automatically after Google Play verification."
         ),
         state: testerActive ? "done" : "locked",
         statusText: testerActive
